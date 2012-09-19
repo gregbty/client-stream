@@ -1,0 +1,16 @@
+Router
+-Broadcast availibility
+-Send authorization key to endpoint when verified
+-Add authorized endpoints to routing table
+-Send list of authorized endpoints to endpoint
+-Create IDs for each authorized endpoint
+
+Endpoint
+-Act as server/client
+-Request list of authorized endpoints
+-Request list of files from remote endpoint
+-Stream files from remote endpoint
+
+Both
+-GUI interface
+-Configuration of port
