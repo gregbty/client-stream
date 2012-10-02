@@ -20,7 +20,7 @@ public class Logger {
 	public static void error(String msg) {
 		if (mLevel < ERROR) return;
 		
-		System.out.println("ERROR: " + msg);
+		System.err.println("ERROR: " + msg);
 	}
 	
 	public static void info(String msg) {

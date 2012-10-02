@@ -2,44 +2,47 @@ package net.gregbeaty.clientstream;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.MulticastSocket;
 import java.util.ArrayList;
 
 import net.gregbeaty.clientstream.helper.Constants;
 import net.gregbeaty.clientstream.helper.Logger;
 
 public class Router {
-	private ArrayList<String> mServers;
+	private ArrayList<String> servers;
 
 	public Router() {
-		mServers = new ArrayList<String>();
+		servers = new ArrayList<String>();
 	}
 
 	public void getServerList() {
-		mServers.clear();
+		servers.clear();
 
 		InetAddress group;
 		try {
-			MulticastSocket socket = new MulticastSocket(
-					Constants.BROADCAST_PORT);
+			DatagramSocket socket = new DatagramSocket(Constants.BROADCAST_PORT);
 			group = InetAddress.getByName(Constants.BROADCAST_ADDRESS);
-			socket.joinGroup(group);
 
-			DatagramPacket packet;
+			byte[] output = new byte[256];
+			DatagramPacket broadcast = new DatagramPacket(output,
+					output.length, group, Constants.BROADCAST_PORT);
+			socket.send(broadcast);
+
+			DatagramPacket response;
 			int count = 0;
 			while (count < 10) {
 				byte[] input = new byte[256];
-				packet = new DatagramPacket(input, input.length);
-				socket.receive(packet);
+				response = new DatagramPacket(input, input.length);
+				socket.receive(response);
 
-				String data = new String(packet.getData());
+				String data = new String(response.getData());
 				if (data.equalsIgnoreCase(Constants.BROADCAST_MSG)) {
-					InetAddress address = packet.getAddress();
-					int port = packet.getPort();
+					InetAddress address = response.getAddress();
+					int port = response.getPort();
 
 					boolean serverExists = false;
-					for (String server : mServers) {
+					for (String server : servers) {
 						if (server.split(":")[0].equalsIgnoreCase(address
 								.toString())) {
 							serverExists = true;
@@ -51,16 +54,22 @@ public class Router {
 						continue;
 
 					String server = address + ":" + port;
-					mServers.add(server);
+					servers.add(server);
 				}
+
 				count++;
 			}
 
-			socket.leaveGroup(group);
 			socket.close();
 		} catch (IOException e) {
-			Logger.error("Failed to create multicast broadcast socket");
+			Logger.error("Failed to send broadcast");
 			Logger.debug(e.toString());
+		}
+	}
+
+	public void printServerList() {
+		for (String server : servers) {
+			System.out.println(server);
 		}
 	}
 }
