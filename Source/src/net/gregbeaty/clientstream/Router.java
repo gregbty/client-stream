@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import net.gregbeaty.clientstream.helper.Constants;
 import net.gregbeaty.clientstream.helper.Logger;
 
-public class Router {
+public class Router implements Endpoint {
 	private ArrayList<String> servers;
 
 	public Router() {
@@ -71,5 +71,29 @@ public class Router {
 		for (String server : servers) {
 			System.out.println(server);
 		}
+	}
+
+	@Override
+	public void stop() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public String getAddress() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public int getPort() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public void printFileList() {
+		// TODO Auto-generated method stub
+		
 	}
 }

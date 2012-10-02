@@ -1,9 +1,9 @@
 package net.gregbeaty.clientstream.helper;
 
 public class Logger {
-	private static int ERROR = 1;
-	private static int INFO = 2;
-	private static int DEBUG = 3;
+	public final static int ERROR = 1;
+	public final static int INFO = 2;
+	public final static int DEBUG = 3;
 	
 	private static int mLevel = INFO;
 	

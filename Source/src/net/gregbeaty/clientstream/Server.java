@@ -9,13 +9,20 @@ import java.net.UnknownHostException;
 import net.gregbeaty.clientstream.helper.Constants;
 import net.gregbeaty.clientstream.helper.Logger;
 
-public class Server {
+public class Server implements Endpoint {
 
 	private BroadcastThread broadcastThread;
 
 	public Server() {
 		broadcastThread = new BroadcastThread();
 		broadcastThread.start();
+
+		Logger.debug("Broadcast thread started");
+	}
+
+	@Override
+	public void stop() {
+		broadcastThread.cancel();
 	}
 
 	public class BroadcastThread extends Thread {
@@ -30,6 +37,7 @@ public class Server {
 		public void run() {
 			try {
 				socket = new MulticastSocket();
+
 				group = InetAddress.getByName(Constants.BROADCAST_ADDRESS);
 				socket.joinGroup(group);
 
@@ -42,8 +50,6 @@ public class Server {
 				Logger.error("Failed to create multicast socket");
 				Logger.debug(e.toString());
 			}
-
-			socket.close();
 		}
 
 		private void receiveBroadcast() {
@@ -59,8 +65,10 @@ public class Server {
 						sendResponse(address, port);
 					}
 				} catch (IOException e) {
-					Logger.error("Failed to recieve packet");
-					Logger.debug(e.toString());
+					if (!socket.isClosed()) {
+						Logger.error("Failed to recieve packet");
+						Logger.debug(e.toString());
+					}
 				}
 			}
 		}
@@ -80,7 +88,26 @@ public class Server {
 		}
 
 		public synchronized void cancel() {
+			socket.close();
 			stop = true;
 		}
+	}
+
+	@Override
+	public String getAddress() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public int getPort() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public void printFileList() {
+		// TODO Auto-generated method stub
+		
 	}
 }
