@@ -12,7 +12,7 @@ import net.gregbeaty.clientstream.helper.Logger;
 public class Server {
 
 	public class ServerThread extends Thread {
-		DatagramSocket socket = new DatagramSocket(Constants.PORT);
+		DatagramSocket socket = new DatagramSocket(Constants.STREAMING_PORT);
 		byte[] input = new byte[1024];
 		byte[] output = new byte[1024];
 
@@ -22,6 +22,7 @@ public class Server {
 
 		}
 
+		@Override
 		public void run() {
 			while (!stop) {
 				DatagramPacket incomingPacket = new DatagramPacket(input,
