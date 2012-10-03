@@ -4,70 +4,135 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 
 import net.gregbeaty.clientstream.helper.Constants;
 import net.gregbeaty.clientstream.helper.Logger;
+import net.gregbeaty.clientstream.helper.Operations;
 
 public class Router implements Endpoint {
 	private ArrayList<String> servers;
+	private ServerThread serverThread;
 
 	public Router() {
 		servers = new ArrayList<String>();
+
+		serverThread = new ServerThread();
+		serverThread.start();
+		Logger.debug("Discovery thread started");
 	}
 
-	public void getServerList() {
-		servers.clear();
+	private class ServerThread extends Thread {
+		DatagramSocket socket;
+		volatile boolean stop = false;
 
-		InetAddress group;
-		try {
-			DatagramSocket socket = new DatagramSocket(Constants.BROADCAST_PORT);
-			group = InetAddress.getByName(Constants.BROADCAST_ADDRESS);
+		@Override
+		public void run() {
+			try {
+				socket = new DatagramSocket(Constants.BROADCAST_PORT);
 
-			byte[] output = new byte[256];
-			DatagramPacket broadcast = new DatagramPacket(output,
-					output.length, group, Constants.BROADCAST_PORT);
-			socket.send(broadcast);
-
-			DatagramPacket response;
-			int count = 0;
-			while (count < 10) {
-				byte[] input = new byte[256];
-				response = new DatagramPacket(input, input.length);
-				socket.receive(response);
-
-				String data = new String(response.getData());
-				if (data.equalsIgnoreCase(Constants.BROADCAST_MSG)) {
-					InetAddress address = response.getAddress();
-					int port = response.getPort();
-
-					boolean serverExists = false;
-					for (String server : servers) {
-						if (server.split(":")[0].equalsIgnoreCase(address
-								.toString())) {
-							serverExists = true;
-							break;
-						}
-					}
-
-					if (serverExists)
-						continue;
-
-					String server = address + ":" + port;
-					servers.add(server);
+				while (!stop) {
+					listenForIncoming();
 				}
+			} catch (IOException e) {
+				if (!socket.isClosed()) {
+					Logger.error("Discovery socket error");
+					Logger.debug(e.toString());
+				}
+			}
+		}
 
-				count++;
+		private void listenForIncoming() {
+			byte[] inputBuf = new byte[1000];
+			DatagramPacket incoming = new DatagramPacket(inputBuf,
+					inputBuf.length);
+
+			try {
+				socket.receive(incoming);
+
+				String data = new String(incoming.getData(),
+						incoming.getOffset(), incoming.getLength());
+				parseData(incoming, data);
+			} catch (IOException e) {
+				if (!socket.isClosed()) {
+					Logger.error("Failed to receive message");
+					Logger.debug(e.toString());
+				}
+			}
+		}
+
+		private void parseData(DatagramPacket packet, String data) {
+			String request = "";
+			if (data.contains("|")) {
+				request = data.split("|")[0];
+			} else {
+				request = data;
 			}
 
+			Logger.debug("Received operation: " + request);
+
+			if (request.equalsIgnoreCase(Operations.SEND_FILE_LIST)) {
+			} else if (request.equalsIgnoreCase(Operations.GET_FILE_LIST)) {
+				getFileList();
+			} else if (request.equalsIgnoreCase(Constants.BROADCAST_MSG)) {
+				addServer(packet.getAddress().getHostAddress());
+			}
+		}
+
+		private void addServer(String address) {
+			int port = Constants.STREAMING_PORT;
+
+			boolean serverExists = false;
+			for (String server : servers) {
+				if (server.split(":")[0].equalsIgnoreCase(address.toString())) {
+					serverExists = true;
+					break;
+				}
+			}
+
+			if (!serverExists) {
+				String server = address + ":" + port;
+				servers.add(server);
+			}
+		}
+
+		public synchronized void getFileList() {
+			for (String server : servers) {
+				InetAddress address;
+				try {
+					address = InetAddress.getByName(server.split(":")[0]);
+					int port = Integer.parseInt(server.split(":")[1]);
+
+					byte[] outputBuf = new byte[1024];
+					String fileCommand = Operations.GET_FILE_LIST;
+					outputBuf = fileCommand.getBytes();
+
+					DatagramPacket outgoing = new DatagramPacket(outputBuf,
+							outputBuf.length, address, port);
+
+					try {
+						socket.send(outgoing);
+
+					} catch (IOException e) {
+						Logger.error("Failed to send message");
+						Logger.debug(e.toString());
+					}
+				} catch (UnknownHostException e) {
+					Logger.error("Failed to parse server address");
+					Logger.debug(e.toString());
+				}
+			}
+
+		}
+
+		public synchronized void cancel() {
 			socket.close();
-		} catch (IOException e) {
-			Logger.error("Failed to send broadcast");
-			Logger.debug(e.toString());
+			stop = true;
 		}
 	}
 
-	public void printServerList() {
+	public void getServerList() {
 		for (String server : servers) {
 			System.out.println(server);
 		}
@@ -75,25 +140,23 @@ public class Router implements Endpoint {
 
 	@Override
 	public void stop() {
-		// TODO Auto-generated method stub
-		
+		serverThread.cancel();
 	}
 
 	@Override
-	public String getAddress() {
-		// TODO Auto-generated method stub
-		return null;
-	}
+	public String getHostInfo() {
+		InetAddress address = null;
+		try {
+			address = InetAddress.getLocalHost();
+		} catch (UnknownHostException e) {
+			Logger.error("Failed to get host information");
+			Logger.debug(e.toString());
+		}
 
-	@Override
-	public int getPort() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public void printFileList() {
-		// TODO Auto-generated method stub
-		
+		if (address == null) {
+			return null;
+		} else {
+			return address.getHostAddress() + ":" + Constants.STREAMING_PORT;
+		}
 	}
 }
