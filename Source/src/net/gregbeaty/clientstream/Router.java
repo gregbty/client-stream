@@ -30,7 +30,7 @@ public class Router implements Endpoint {
 		@Override
 		public void run() {
 			try {
-				socket = new DatagramSocket(Constants.BROADCAST_PORT);
+				socket = new DatagramSocket(Constants.PORT);
 
 				while (!stop) {
 					listenForIncoming();
@@ -81,7 +81,7 @@ public class Router implements Endpoint {
 		}
 
 		private void addServer(String address) {
-			int port = Constants.STREAMING_PORT;
+			int port = Constants.STREAM_PORT;
 
 			boolean serverExists = false;
 			for (String server : servers) {
@@ -102,7 +102,7 @@ public class Router implements Endpoint {
 				InetAddress address;
 				try {
 					address = InetAddress.getByName(server.split(":")[0]);
-					int port = Integer.parseInt(server.split(":")[1]);
+					int port = Constants.PORT;
 
 					byte[] outputBuf = new byte[1024];
 					String fileCommand = Operations.GET_FILE_LIST;
@@ -156,7 +156,7 @@ public class Router implements Endpoint {
 		if (address == null) {
 			return null;
 		} else {
-			return address.getHostAddress() + ":" + Constants.STREAMING_PORT;
+			return address.getHostAddress() + ":" + Constants.PORT;
 		}
 	}
 }

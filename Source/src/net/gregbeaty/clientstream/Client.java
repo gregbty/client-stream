@@ -4,7 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -22,6 +22,7 @@ public class Client implements Endpoint {
 
 	private ClassLoader classLoader;
 	private InetAddress routerAddress;
+	private BroadcastThread broadcastThread;
 	private RouterThread routerThread;
 	private StreamThread streamThread;
 
@@ -29,19 +30,58 @@ public class Client implements Endpoint {
 		classLoader = Client.class.getClassLoader();
 		routerAddress = r;
 
+		broadcastThread = new BroadcastThread();
+		broadcastThread.start();
+
 		routerThread = new RouterThread();
 		routerThread.start();
-		Logger.debug("Discovery thread started");
 
 		streamThread = new StreamThread();
 		streamThread.start();
-		Logger.debug("Stream thread started");
 	}
 
 	@Override
 	public void stop() {
+		broadcastThread.cancel();
 		routerThread.cancel();
 		streamThread.cancel();
+	}
+
+	private class BroadcastThread extends Thread {
+		private DatagramSocket socket;
+		private volatile boolean stop = false;
+
+		@Override
+		public void run() {
+			try {
+				socket = new DatagramSocket();
+
+				while (!stop) {
+					byte[] outputBuf = new byte[1024];
+					String broadcast = Constants.BROADCAST_MSG;
+					outputBuf = broadcast.getBytes();
+
+					DatagramPacket packet = new DatagramPacket(outputBuf,
+							outputBuf.length, routerAddress, Constants.PORT);
+
+					try {
+						socket.send(packet);
+					} catch (IOException e) {
+						Logger.error("Failed to send message");
+						Logger.debug(e.toString());
+					}
+				}
+
+			} catch (IOException e) {
+				Logger.error("Broadcast socket error");
+				Logger.debug(e.toString());
+			}
+		}
+
+		public synchronized void cancel() {
+			socket.close();
+			stop = true;
+		}
 	}
 
 	private class RouterThread extends Thread {
@@ -52,21 +92,20 @@ public class Client implements Endpoint {
 		public void run() {
 
 			try {
-				socket = new DatagramSocket();
+				socket = new DatagramSocket(Constants.PORT);
 
 				while (!stop) {
-					broadcastAvailability();
 					listenForIncoming();
 				}
 
 			} catch (IOException e) {
-				Logger.error("Broadcast socket error");
+				Logger.error("Router socket error");
 				Logger.debug(e.toString());
 			}
 		}
 
 		private void listenForIncoming() {
-			byte[] inputBuf = new byte[1000];
+			byte[] inputBuf = new byte[1024];
 			DatagramPacket incoming = new DatagramPacket(inputBuf,
 					inputBuf.length);
 
@@ -103,29 +142,13 @@ public class Client implements Endpoint {
 			}
 		}
 
-		public synchronized void broadcastAvailability() {
-			byte[] outputBuf = new byte[1024];
-			String broadcast = Constants.BROADCAST_MSG;
-			outputBuf = broadcast.getBytes();
-
-			DatagramPacket packet = new DatagramPacket(outputBuf,
-					outputBuf.length, routerAddress, Constants.BROADCAST_PORT);
-
-			try {
-				socket.send(packet);
-			} catch (IOException e) {
-				Logger.error("Failed to send message");
-				Logger.debug(e.toString());
-			}
-		}
-
 		public synchronized void getFileList() {
 			byte[] outputBuf = new byte[1024];
 			String fileCommand = Operations.GET_FILE_LIST;
 			outputBuf = fileCommand.getBytes();
 
 			DatagramPacket outgoing = new DatagramPacket(outputBuf,
-					outputBuf.length, routerAddress, Constants.BROADCAST_PORT);
+					outputBuf.length, routerAddress, Constants.PORT);
 
 			try {
 				socket.send(outgoing);
@@ -153,8 +176,7 @@ public class Client implements Endpoint {
 				outputBuf = fileCommand.getBytes();
 
 				DatagramPacket outgoing = new DatagramPacket(outputBuf,
-						outputBuf.length, routerAddress,
-						Constants.BROADCAST_PORT);
+						outputBuf.length, routerAddress, Constants.PORT);
 
 				try {
 					socket.send(outgoing);
@@ -177,55 +199,60 @@ public class Client implements Endpoint {
 	}
 
 	private class StreamThread extends Thread {
-		ServerSocket server;
-		PrintWriter output = null;
-		volatile boolean stop = false;
+		private ServerSocket server;
+		private volatile boolean stop = false;
+
+		byte[] inputBuf = new byte[1024];
 
 		@Override
 		public void run() {
-			Socket socket = null;
+			while (!stop) {
+				try {
+					server = new ServerSocket(Constants.STREAM_PORT);
+					Socket client = server.accept();
 
-			try {
-				server = new ServerSocket(Constants.STREAMING_PORT);
+					InputStream input = client.getInputStream();
+					OutputStream output = client.getOutputStream();
 
-				while (!stop) {
-					socket = server.accept();
-					output = new PrintWriter(socket.getOutputStream(), true);
+					boolean metadataSent = false;
 
-					Logger.debug("Connected to: " + socket.getInetAddress()
-							+ ":" + socket.getPort());
+					String command;
 
-					try {
-						BufferedReader input = new BufferedReader(
-								new InputStreamReader(socket.getInputStream()));
-						while (!input.ready()) {
-							Logger.debug("Received: " + input.readLine());
+					String fileName;
+					int fileSize;
+					boolean fileDownloadStart = false;
+					while (true) {
+						int bytes = input.read(inputBuf, 0, inputBuf.length);
+
+						if (!metadataSent) {
+							String data = new String(inputBuf, 0,
+									inputBuf.length);
+							command = data.split("|")[0];
+							if (command.equalsIgnoreCase(Operations.GET_FILE)) {
+								fileName = data.split("|")[1];
+								fileSize = Integer.parseInt(data.split("|")[2]);
+								metadataSent = true;
+								fileDownloadStart = true;
+							}
+						} else if (fileDownloadStart) {
+
 						}
-
-						input.close();
-					} catch (IOException e) {
-						Logger.error("Failed to get input from connected socket");
-						Logger.debug(e.toString());
 					}
 
 					output.close();
-					socket.close();
-				}
-			} catch (IOException e) {
-				if (!server.isClosed()) {
-					Logger.error("Failed to bind/close server socket");
-					Logger.debug(e.toString());
+					input.close();
+					client.close();
+					server.close();
+				} catch (IOException e) {
+					if (server.isClosed()) {
+						Logger.error("Server socket error");
+						Logger.debug(e.toString());
+					}
 				}
 			}
 		}
 
 		public synchronized void cancel() {
-			try {
-				server.close();
-			} catch (IOException e) {
-				Logger.error("Failed to close server socket");
-				Logger.debug(e.toString());
-			}
 			stop = true;
 		}
 	}
@@ -258,8 +285,7 @@ public class Client implements Endpoint {
 		if (address == null) {
 			return null;
 		} else {
-			return address.getHostAddress() + ":" + Constants.STREAMING_PORT;
+			return address.getHostAddress() + ":" + Constants.PORT;
 		}
 	}
-
 }
