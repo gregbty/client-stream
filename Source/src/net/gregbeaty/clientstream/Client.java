@@ -100,7 +100,9 @@ public class Client implements Endpoint {
 					byte[] outputBuf = new byte[1024];
 
 					clientInput.read(inputBuf);
-					String request = new String(inputBuf, 0, inputBuf.length);
+					String request = new String(inputBuf);
+					request = request.replaceAll("\0", "");
+					
 
 					Logger.debug("SERVER-Received request: " + request);
 					
@@ -180,7 +182,8 @@ public class Client implements Endpoint {
 				clientOutput.flush();
 
 				clientInput.read(inputBuf);
-				String response = new String(inputBuf, 0, inputBuf.length);
+				String response = new String(inputBuf);
+				response = response.replaceAll("\0", "");
 				
 				Logger.debug("CLIENT-Received response: " + response);
 

@@ -113,8 +113,9 @@ public class Router implements Endpoint {
 					byte[] inputBuf = new byte[1024];
 					byte[] outputBuf = new byte[1024];
 
-					clientInput.read(inputBuf, 0, inputBuf.length);
-					String request = new String(inputBuf, 0, inputBuf.length);
+					clientInput.read(inputBuf);
+					String request = new String(inputBuf);
+					request = request.replaceAll("\0", "");
 
 					Logger.debug("ROUTER-Received request from client: " + request);
 					
@@ -137,7 +138,8 @@ public class Router implements Endpoint {
 							routedOutput.flush();
 							
 							routedInput.read(inputBuf);
-							request = new String(inputBuf, 0, inputBuf.length);
+							request = new String(inputBuf);
+							request = request.replaceAll("\0", "");
 							
 							Logger.debug("ROUTER-Received response from server: " + request);
 							
