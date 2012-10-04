@@ -1,9 +1,13 @@
 package net.gregbeaty.clientstream;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 
@@ -13,30 +17,34 @@ import net.gregbeaty.clientstream.helper.Operations;
 
 public class Router implements Endpoint {
 	private ArrayList<String> servers;
+	private BroadcastThread broadcastThread;
 	private ServerThread serverThread;
 
 	public Router() {
 		servers = new ArrayList<String>();
 
+		broadcastThread = new BroadcastThread();
+		broadcastThread.start();
+
 		serverThread = new ServerThread();
 		serverThread.start();
-		Logger.debug("Discovery thread started");
 	}
 
-	private class ServerThread extends Thread {
-		DatagramSocket socket;
+	private class BroadcastThread extends Thread {
+		DatagramSocket broadcastSocket;
 		volatile boolean stop = false;
 
 		@Override
 		public void run() {
 			try {
-				socket = new DatagramSocket(Constants.PORT);
+				broadcastSocket = new DatagramSocket(
+						Constants.ROUTER_DISCOVERY_PORT);
 
 				while (!stop) {
 					listenForIncoming();
 				}
 			} catch (IOException e) {
-				if (!socket.isClosed()) {
+				if (!broadcastSocket.isClosed()) {
 					Logger.error("Discovery socket error");
 					Logger.debug(e.toString());
 				}
@@ -44,44 +52,29 @@ public class Router implements Endpoint {
 		}
 
 		private void listenForIncoming() {
-			byte[] inputBuf = new byte[1000];
+			byte[] inputBuf = new byte[1024];
 			DatagramPacket incoming = new DatagramPacket(inputBuf,
 					inputBuf.length);
 
 			try {
-				socket.receive(incoming);
+				broadcastSocket.receive(incoming);
 
-				String data = new String(incoming.getData(),
+				String request = new String(incoming.getData(),
 						incoming.getOffset(), incoming.getLength());
-				parseData(incoming, data);
+
+				if (request.equalsIgnoreCase(Constants.BROADCAST_MSG)) {
+					addServer(incoming.getAddress().getHostAddress());
+				}
 			} catch (IOException e) {
-				if (!socket.isClosed()) {
+				if (!broadcastSocket.isClosed()) {
 					Logger.error("Failed to receive message");
 					Logger.debug(e.toString());
 				}
 			}
 		}
 
-		private void parseData(DatagramPacket packet, String data) {
-			String request = "";
-			if (data.contains("|")) {
-				request = data.split("|")[0];
-			} else {
-				request = data;
-			}
-
-			Logger.debug("Received operation: " + request);
-
-			if (request.equalsIgnoreCase(Operations.SEND_FILE_LIST)) {
-			} else if (request.equalsIgnoreCase(Operations.GET_FILE_LIST)) {
-				getFileList();
-			} else if (request.equalsIgnoreCase(Constants.BROADCAST_MSG)) {
-				addServer(packet.getAddress().getHostAddress());
-			}
-		}
-
 		private void addServer(String address) {
-			int port = Constants.STREAM_PORT;
+			int port = Constants.SERVER_STREAM_PORT;
 
 			boolean serverExists = false;
 			for (String server : servers) {
@@ -97,37 +90,93 @@ public class Router implements Endpoint {
 			}
 		}
 
-		public synchronized void getFileList() {
-			for (String server : servers) {
-				InetAddress address;
-				try {
-					address = InetAddress.getByName(server.split(":")[0]);
-					int port = Constants.PORT;
+		public synchronized void cancel() {
+			broadcastSocket.close();
+			stop = true;
+		}
+	}
 
+	private class ServerThread extends Thread {
+		private ServerSocket server;
+		private volatile boolean stop = false;
+
+		@Override
+		public void run() {
+			try {
+				server = new ServerSocket(Constants.ROUTER_STREAM_PORT);
+
+				while (!stop) {
+					Socket client = server.accept();
+					InputStream clientInput = client.getInputStream();
+					OutputStream clientOutput = client.getOutputStream();
+
+					byte[] inputBuf = new byte[1024];
 					byte[] outputBuf = new byte[1024];
-					String fileCommand = Operations.GET_FILE_LIST;
-					outputBuf = fileCommand.getBytes();
 
-					DatagramPacket outgoing = new DatagramPacket(outputBuf,
-							outputBuf.length, address, port);
+					clientInput.read(inputBuf, 0, inputBuf.length);
+					String request = new String(inputBuf, 0, inputBuf.length);
 
-					try {
-						socket.send(outgoing);
+					Logger.debug("ROUTER-Received request from client: " + request);
+					
+					if (request.equalsIgnoreCase(Operations.GET_FILE)) {
+						for (String server : servers) {
+							if (client.getInetAddress().getHostAddress() == server)
+								continue;
 
-					} catch (IOException e) {
-						Logger.error("Failed to send message");
-						Logger.debug(e.toString());
+							InetAddress address = InetAddress.getByName(server);
+							int port = Constants.SERVER_STREAM_PORT;
+
+							Socket routedSocket = new Socket(address, port);
+							InputStream routedInput = routedSocket
+									.getInputStream();
+							OutputStream routedOutput = routedSocket
+									.getOutputStream();
+
+							outputBuf = request.getBytes();
+							routedOutput.write(outputBuf);
+							routedOutput.flush();
+							
+							routedInput.read(inputBuf);
+							request = new String(inputBuf, 0, inputBuf.length);
+							
+							Logger.debug("ROUTER-Received response from server: " + request);
+							
+							if (request.split(":")[0]
+									.equalsIgnoreCase(Operations.FILE_METADATA)) {
+								outputBuf = request.getBytes();
+								clientOutput.write(outputBuf);
+								clientOutput.flush();
+
+								while (routedInput.read(inputBuf) != -1) {
+									outputBuf = inputBuf;
+									clientOutput.write(outputBuf);
+									clientOutput.flush();
+								}
+
+								routedInput.close();
+								routedOutput.close();
+								routedSocket.close();
+							}
+							
+							break;
+						}
 					}
-				} catch (UnknownHostException e) {
-					Logger.error("Failed to parse server address");
-					Logger.debug(e.toString());
-				}
-			}
 
+					clientInput.close();
+					clientOutput.close();
+					client.close();
+				}
+			} catch (IOException e) {
+				Logger.debug(e.toString());
+			}
 		}
 
 		public synchronized void cancel() {
-			socket.close();
+			try {
+				server.close();
+			} catch (IOException e) {
+			}
+
 			stop = true;
 		}
 	}
@@ -140,6 +189,7 @@ public class Router implements Endpoint {
 
 	@Override
 	public void stop() {
+		broadcastThread.cancel();
 		serverThread.cancel();
 	}
 
@@ -156,7 +206,8 @@ public class Router implements Endpoint {
 		if (address == null) {
 			return null;
 		} else {
-			return address.getHostAddress() + ":" + Constants.PORT;
+			return address.getHostAddress() + ":"
+					+ Constants.ROUTER_STREAM_PORT;
 		}
 	}
 }

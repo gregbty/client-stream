@@ -97,17 +97,15 @@ public class ClientStream {
 			if (getEndpointType().equalsIgnoreCase(Constants.ROUTER)) {
 				System.out.println("servers - get list of servers");
 			} else if (getEndpointType().equalsIgnoreCase(Constants.CLIENT)) {
-				// TODO: Enable for Phase 2
-				// System.out.println("filelist - get list of hosted files");
+				System.out.println("download - download a file from a server");
 			}
 			System.out.println("hostinfo - get host info");
 			System.out.println("exit - close the program");
-		} else if (command.equalsIgnoreCase("filelist")) {
-			// TODO: Enable for Phase 2
-			// if (getEndpointType().equalsIgnoreCase(Constants.CLIENT)) {
-			// Client Client = (Client) endpoint;
-			// Client.getFileList();
-			// }
+		} else if (command.equalsIgnoreCase("download")) {
+			if (getEndpointType().equalsIgnoreCase(Constants.CLIENT)) {
+				Client client = (Client) endpoint;
+				client.downloadFile();
+			}
 		} else if (command.equalsIgnoreCase("servers")) {
 			if (getEndpointType().equalsIgnoreCase(Constants.ROUTER)) {
 				Router router = (Router) endpoint;
