@@ -9,6 +9,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 import net.gregbeaty.clientstream.helper.Constants;
@@ -74,19 +75,16 @@ public class Router implements Endpoint {
 		}
 
 		private void addServer(String address) {
-			int port = Constants.SERVER_STREAM_PORT;
-
 			boolean serverExists = false;
 			for (String server : servers) {
-				if (server.split(":")[0].equalsIgnoreCase(address.toString())) {
+				if (server.equalsIgnoreCase(address.toString())) {
 					serverExists = true;
 					break;
 				}
 			}
 
 			if (!serverExists) {
-				String server = address + ":" + port;
-				servers.add(server);
+				servers.add(address);
 			}
 		}
 
@@ -106,19 +104,21 @@ public class Router implements Endpoint {
 				server = new ServerSocket(Constants.ROUTER_STREAM_PORT);
 
 				while (!stop) {
+					Logger.info("ROUTER-Waiting for client connection");
 					Socket client = server.accept();
 					InputStream clientInput = client.getInputStream();
 					OutputStream clientOutput = client.getOutputStream();
 
-					byte[] inputBuf = new byte[1024];
+					ByteBuffer inputBuf = ByteBuffer.allocate(1024);
 					byte[] outputBuf = new byte[1024];
 
-					clientInput.read(inputBuf);
-					String request = new String(inputBuf);
+					clientInput.read(inputBuf.array());
+					String request = new String(inputBuf.array());
 					request = request.replaceAll("\0", "");
 
-					Logger.debug("ROUTER-Received request from client: " + request);
-					
+					Logger.debug("ROUTER-Received request from client: "
+							+ request);
+
 					if (request.equalsIgnoreCase(Operations.GET_FILE)) {
 						for (String server : servers) {
 							if (client.getInetAddress().getHostAddress() == server)
@@ -136,33 +136,59 @@ public class Router implements Endpoint {
 							outputBuf = request.getBytes();
 							routedOutput.write(outputBuf);
 							routedOutput.flush();
-							
-							routedInput.read(inputBuf);
-							request = new String(inputBuf);
+
+							inputBuf.clear();
+							routedInput.read(inputBuf.array());
+							request = new String(inputBuf.array());
 							request = request.replaceAll("\0", "");
-							
-							Logger.debug("ROUTER-Received response from server: " + request);
-							
+
+							Logger.debug("ROUTER-Received response from server: "
+									+ request);
+
 							if (request.split(":")[0]
 									.equalsIgnoreCase(Operations.FILE_METADATA)) {
 								outputBuf = request.getBytes();
 								clientOutput.write(outputBuf);
 								clientOutput.flush();
 
-								while (routedInput.read(inputBuf) != -1) {
-									outputBuf = inputBuf;
+								int received = 0;
+								int total = Integer
+										.parseInt(request.split(":")[2]);
+
+								inputBuf.clear();
+								while (received < total) {
+									Logger.debug(Integer.toString(received));
+									received += routedInput.read(inputBuf
+											.array());
+
+									outputBuf = inputBuf.array();
 									clientOutput.write(outputBuf);
 									clientOutput.flush();
 								}
+								
+								Logger.debug("ROUTER-Routed output to client");
 
 								routedInput.close();
 								routedOutput.close();
 								routedSocket.close();
 							}
-							
-							break;
 						}
 					}
+					
+					while (true) {
+						int bytes = clientInput.read();
+						Logger.debug("Available bytes: " + Integer.toString(bytes));
+						if (clientInput.read() == -1)
+							break;
+						
+						try {
+							sleep(100);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+					
+					Logger.debug("ROUTER-Client disconnected");
 
 					clientInput.close();
 					clientOutput.close();
@@ -192,7 +218,18 @@ public class Router implements Endpoint {
 	@Override
 	public void stop() {
 		broadcastThread.cancel();
+		try {
+			broadcastThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
 		serverThread.cancel();
+		try {
+			serverThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override

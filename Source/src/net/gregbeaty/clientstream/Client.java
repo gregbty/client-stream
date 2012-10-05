@@ -13,6 +13,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.Random;
 
 import net.gregbeaty.clientstream.helper.Constants;
@@ -34,13 +35,6 @@ public class Client implements Endpoint {
 
 		serverThread = new ServerThread();
 		serverThread.start();
-	}
-
-	@Override
-	public void stop() {
-		broadcastThread.cancel();
-		serverThread.cancel();
-		clientThread.cancel();
 	}
 
 	private class BroadcastThread extends Thread {
@@ -96,16 +90,15 @@ public class Client implements Endpoint {
 					InputStream clientInput = client.getInputStream();
 					OutputStream clientOutput = client.getOutputStream();
 
-					byte[] inputBuf = new byte[1024];
+					ByteBuffer inputBuf = ByteBuffer.allocate(1024);
 					byte[] outputBuf = new byte[1024];
 
-					clientInput.read(inputBuf);
-					String request = new String(inputBuf);
+					clientInput.read(inputBuf.array());
+					String request = new String(inputBuf.array());
 					request = request.replaceAll("\0", "");
-					
 
 					Logger.debug("SERVER-Received request: " + request);
-					
+
 					if (request.equalsIgnoreCase(Operations.GET_FILE)) {
 						String dir = System.getProperty("user.dir");
 						Random random = new Random();
@@ -135,9 +128,23 @@ public class Client implements Endpoint {
 						fileReader.close();
 
 						Logger.info("SERVER-Transfered file: " + file.getName());
-						break;
 					}
-
+				
+					while (true) {
+						int bytes = clientInput.read();
+						Logger.debug("Available bytes: " + Integer.toString(bytes));
+						if (clientInput.read() == -1)
+							break;
+						
+						try {
+							sleep(100);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+					
+					Logger.debug("SERVER-Client disconnected");
+					
 					try {
 						clientInput.close();
 						clientOutput.close();
@@ -166,7 +173,7 @@ public class Client implements Endpoint {
 
 	private class ClientThread extends Thread {
 		private Socket client;
-		
+
 		@Override
 		public void run() {
 			try {
@@ -174,17 +181,17 @@ public class Client implements Endpoint {
 				InputStream clientInput = client.getInputStream();
 				OutputStream clientOutput = client.getOutputStream();
 
-				byte[] inputBuf = new byte[1024];
+				ByteBuffer inputBuf = ByteBuffer.allocate(1024);
 				byte[] outputBuf = new byte[1024];
 
 				outputBuf = Operations.GET_FILE.getBytes();
 				clientOutput.write(outputBuf);
 				clientOutput.flush();
 
-				clientInput.read(inputBuf);
-				String response = new String(inputBuf);
+				clientInput.read(inputBuf.array());
+				String response = new String(inputBuf.array());
 				response = response.replaceAll("\0", "");
-				
+
 				Logger.debug("CLIENT-Received response: " + response);
 
 				if (response.split(":")[0]
@@ -198,8 +205,14 @@ public class Client implements Endpoint {
 					File file = new File(dir + "/downloads/" + fileName);
 					FileOutputStream fileStream = new FileOutputStream(file);
 
-					while (clientInput.read(inputBuf) != -1) {
-						fileStream.write(inputBuf);
+					int received = 0;
+					int total = fileSize;
+
+					inputBuf.clear();
+					while (received < total) {
+						received += clientInput.read(inputBuf.array());
+						fileStream.write(inputBuf.array());
+						fileStream.flush();
 					}
 
 					Logger.info("CLIENT-Received: " + file.length() + " bytes");
@@ -209,7 +222,9 @@ public class Client implements Endpoint {
 					} catch (IOException e) {
 
 					}
-
+					
+					clientInput.close();
+					clientOutput.close();
 					client.close();
 				}
 			} catch (IOException e) {
@@ -231,14 +246,39 @@ public class Client implements Endpoint {
 
 	public void downloadFile() {
 		if (clientThread == null) {
-			clientThread = new ClientThread();
-			clientThread.start();
-			Logger.info("CLIENT-Downloading thread started");
+			Logger.info("CLIENT-Downloading thread starting");
 		} else if (!clientThread.isAlive()) {
-			clientThread.start();
 			Logger.info("CLIENT-Downloading thread restarted");
 		} else {
 			Logger.info("CLIENT-Downloading already in progress");
+			return;
+		}
+
+		clientThread = new ClientThread();
+		clientThread.start();
+	}
+
+	@Override
+	public void stop() {
+		broadcastThread.cancel();
+		try {
+			broadcastThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
+		serverThread.cancel();
+		try {
+			serverThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
+		clientThread.cancel();
+		try {
+			clientThread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 	}
 
