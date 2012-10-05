@@ -1,9 +1,8 @@
 package net.gregbeaty.clientstream;
 
-import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -86,6 +85,7 @@ public class Client implements Endpoint {
 				server = new ServerSocket(Constants.SERVER_STREAM_PORT);
 
 				while (!stop) {
+					Logger.info("SERVER-Waiting for router connection");
 					Socket client = server.accept();
 					InputStream clientInput = client.getInputStream();
 					OutputStream clientOutput = client.getOutputStream();
@@ -93,9 +93,8 @@ public class Client implements Endpoint {
 					ByteBuffer inputBuf = ByteBuffer.allocate(1024);
 					byte[] outputBuf = new byte[1024];
 
-					clientInput.read(inputBuf.array());
-					String request = new String(inputBuf.array());
-					request = request.replaceAll("\0", "");
+					int readBytes = clientInput.read(inputBuf.array());
+					String request = new String(inputBuf.array(), 0, readBytes);
 
 					Logger.debug("SERVER-Received request: " + request);
 
@@ -109,42 +108,27 @@ public class Client implements Endpoint {
 						String response = Operations.FILE_METADATA + ":"
 								+ file.getName() + ":" + file.length();
 
-						Logger.info("SERVER-Sending response: " + response);
+						Logger.debug("SERVER-Sending response: " + response);
 
 						outputBuf = response.getBytes();
 						clientOutput.write(outputBuf);
-						clientOutput.flush();
 
-						BufferedReader fileReader = new BufferedReader(
-								new FileReader(file));
+						FileInputStream fileStream = new FileInputStream(file);
 
-						String line;
-						while ((line = fileReader.readLine()) != null) {
-							outputBuf = line.getBytes();
-							clientOutput.write(outputBuf);
-							clientOutput.flush();
+						int bytes = 0;
+						outputBuf = new byte[1024];
+						while ((bytes = fileStream.read(outputBuf)) != -1) {
+							clientOutput.write(outputBuf, 0, bytes);
 						}
 
-						fileReader.close();
+						fileStream.close();
 
-						Logger.info("SERVER-Transfered file: " + file.getName());
+						Logger.info("SERVER-Transfered: Name-" + file.getName()
+								+ " Size-" + file.length() + " bytes");
 					}
-				
-					while (true) {
-						int bytes = clientInput.read();
-						Logger.debug("Available bytes: " + Integer.toString(bytes));
-						if (clientInput.read() == -1)
-							break;
-						
-						try {
-							sleep(100);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-					}
-					
-					Logger.debug("SERVER-Client disconnected");
-					
+
+					Logger.debug("SERVER-Disconnected from router");
+
 					try {
 						clientInput.close();
 						clientOutput.close();
@@ -173,11 +157,28 @@ public class Client implements Endpoint {
 
 	private class ClientThread extends Thread {
 		private Socket client;
+		private volatile boolean stop = false;
 
 		@Override
 		public void run() {
 			try {
-				client = new Socket(routerAddress, Constants.ROUTER_STREAM_PORT);
+				Socket client = null;
+
+				while (!stop) {
+					try {
+						client = new Socket(routerAddress,
+								Constants.ROUTER_STREAM_PORT);
+						break;
+					} catch (IOException e) {
+						Logger.info("CLIENT-Router is busy, will retry");
+						try {
+							sleep(300);
+						} catch (InterruptedException ie) {
+							ie.printStackTrace();
+						}
+					}
+				}
+
 				InputStream clientInput = client.getInputStream();
 				OutputStream clientOutput = client.getOutputStream();
 
@@ -186,11 +187,14 @@ public class Client implements Endpoint {
 
 				outputBuf = Operations.GET_FILE.getBytes();
 				clientOutput.write(outputBuf);
-				clientOutput.flush();
 
-				clientInput.read(inputBuf.array());
-				String response = new String(inputBuf.array());
-				response = response.replaceAll("\0", "");
+				int readBytes = clientInput.read(inputBuf.array());
+				if (readBytes == -1) {
+					Logger.info("CLIENT-All servers are busy");
+					return;
+				}
+
+				String response = new String(inputBuf.array(), 0, readBytes);
 
 				Logger.debug("CLIENT-Received response: " + response);
 
@@ -199,30 +203,28 @@ public class Client implements Endpoint {
 					String fileName = response.split(":")[1];
 					int fileSize = Integer.parseInt(response.split(":")[2]);
 					Logger.info("CLIENT-Downloading - Name: " + fileName
-							+ " Length: " + fileSize + " bytes");
+							+ " Size: " + fileSize + " bytes");
 
 					String dir = System.getProperty("user.dir");
 					File file = new File(dir + "/downloads/" + fileName);
 					FileOutputStream fileStream = new FileOutputStream(file);
 
-					int received = 0;
-					int total = fileSize;
-
+					int bytes, total = 0;
 					inputBuf.clear();
-					while (received < total) {
-						received += clientInput.read(inputBuf.array());
-						fileStream.write(inputBuf.array());
+					while ((bytes = clientInput.read(inputBuf.array())) != -1) {
+						total += bytes;
+						fileStream.write(inputBuf.array(), 0, bytes);
 						fileStream.flush();
 					}
 
-					Logger.info("CLIENT-Received: " + file.length() + " bytes");
+					Logger.info("CLIENT-Received: " + total + " bytes");
 
 					try {
 						fileStream.close();
 					} catch (IOException e) {
 
 					}
-					
+
 					clientInput.close();
 					clientOutput.close();
 					client.close();
@@ -241,6 +243,8 @@ public class Client implements Endpoint {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+
+			stop = true;
 		}
 	}
 

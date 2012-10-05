@@ -103,6 +103,7 @@ public class Router implements Endpoint {
 			try {
 				server = new ServerSocket(Constants.ROUTER_STREAM_PORT);
 
+				boolean serverFound;
 				while (!stop) {
 					Logger.info("ROUTER-Waiting for client connection");
 					Socket client = server.accept();
@@ -112,87 +113,84 @@ public class Router implements Endpoint {
 					ByteBuffer inputBuf = ByteBuffer.allocate(1024);
 					byte[] outputBuf = new byte[1024];
 
-					clientInput.read(inputBuf.array());
-					String request = new String(inputBuf.array());
-					request = request.replaceAll("\0", "");
+					int readBytes = clientInput.read(inputBuf.array());
+					String request = new String(inputBuf.array(), 0, readBytes);
 
 					Logger.debug("ROUTER-Received request from client: "
 							+ request);
 
 					if (request.equalsIgnoreCase(Operations.GET_FILE)) {
 						for (String server : servers) {
-							if (client.getInetAddress().getHostAddress() == server)
+							if (client.getInetAddress().getHostAddress()
+									.equalsIgnoreCase(server))
 								continue;
 
 							InetAddress address = InetAddress.getByName(server);
 							int port = Constants.SERVER_STREAM_PORT;
 
-							Socket routedSocket = new Socket(address, port);
-							InputStream routedInput = routedSocket
-									.getInputStream();
-							OutputStream routedOutput = routedSocket
-									.getOutputStream();
+							Socket routedSocket = null;
 
-							outputBuf = request.getBytes();
-							routedOutput.write(outputBuf);
-							routedOutput.flush();
+							try {
+								routedSocket = new Socket(address, port);
+								serverFound = true;
+							} catch (IOException e) {
+								Logger.info("ROUTER-Server is busy, will try another");
+								try {
+									sleep(300);
+								} catch (InterruptedException ie) {
+									ie.printStackTrace();
+								}
+								continue;
+							}
 
-							inputBuf.clear();
-							routedInput.read(inputBuf.array());
-							request = new String(inputBuf.array());
-							request = request.replaceAll("\0", "");
+							if (serverFound) {
+								InputStream routedInput = routedSocket
+										.getInputStream();
+								OutputStream routedOutput = routedSocket
+										.getOutputStream();
 
-							Logger.debug("ROUTER-Received response from server: "
-									+ request);
-
-							if (request.split(":")[0]
-									.equalsIgnoreCase(Operations.FILE_METADATA)) {
 								outputBuf = request.getBytes();
-								clientOutput.write(outputBuf);
-								clientOutput.flush();
-
-								int received = 0;
-								int total = Integer
-										.parseInt(request.split(":")[2]);
+								routedOutput.write(outputBuf);
 
 								inputBuf.clear();
-								while (received < total) {
-									Logger.debug(Integer.toString(received));
-									received += routedInput.read(inputBuf
-											.array());
+								readBytes = routedInput.read(inputBuf.array());
+								request = new String(inputBuf.array(), 0,
+										readBytes);
 
-									outputBuf = inputBuf.array();
+								Logger.debug("ROUTER-Received response from server: "
+										+ request);
+
+								if (request.split(":")[0]
+										.equalsIgnoreCase(Operations.FILE_METADATA)) {
+									outputBuf = request.getBytes();
 									clientOutput.write(outputBuf);
-									clientOutput.flush();
-								}
-								
-								Logger.debug("ROUTER-Routed output to client");
 
-								routedInput.close();
-								routedOutput.close();
-								routedSocket.close();
+									int bytes, total = 0;
+									inputBuf.clear();
+									while ((bytes = routedInput.read(inputBuf
+											.array())) != -1) {
+										total += bytes;
+										outputBuf = inputBuf.array();
+										clientOutput.write(outputBuf, 0, bytes);
+									}
+
+									Logger.debug("ROUTER-Routed output to client: "
+											+ total + " bytes");
+
+									routedInput.close();
+									routedOutput.close();
+									routedSocket.close();
+								}
 							}
 						}
+					} else {
+						Logger.error("ROUTER-No server could be found");
 					}
-					
-					while (true) {
-						int bytes = clientInput.read();
-						Logger.debug("Available bytes: " + Integer.toString(bytes));
-						if (clientInput.read() == -1)
-							break;
-						
-						try {
-							sleep(100);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-					}
-					
-					Logger.debug("ROUTER-Client disconnected");
 
 					clientInput.close();
 					clientOutput.close();
 					client.close();
+					Logger.debug("ROUTER-Client disconnected");
 				}
 			} catch (IOException e) {
 				Logger.debug(e.toString());
