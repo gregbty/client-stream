@@ -182,6 +182,7 @@ public class Router implements Endpoint {
 									routedSocket.close();
 								}
 							}
+							break;
 						}
 					} else {
 						Logger.error("ROUTER-No server could be found");

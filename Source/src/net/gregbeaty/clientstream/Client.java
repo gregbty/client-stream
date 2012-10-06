@@ -101,10 +101,11 @@ public class Client implements Endpoint {
 					if (request.equalsIgnoreCase(Operations.GET_FILE)) {
 						String dir = System.getProperty("user.dir");
 						Random random = new Random();
-						int randomFileNum = random.nextInt(4);
 
-						File file = new File(dir + "/files/" + "file"
-								+ randomFileNum + ".wav");
+						File[] files = new File(dir + "/files/").listFiles();
+						int randomFileNum = random.nextInt(files.length);
+						File file = files[randomFileNum];
+
 						String response = Operations.FILE_METADATA + ":"
 								+ file.getName() + ":" + file.length();
 
@@ -164,70 +165,88 @@ public class Client implements Endpoint {
 			try {
 				Socket client = null;
 
-				while (!stop) {
-					try {
-						client = new Socket(routerAddress,
-								Constants.ROUTER_STREAM_PORT);
-						break;
-					} catch (IOException e) {
-						Logger.info("CLIENT-Router is busy, will retry");
+				int run = 0;
+
+				while (run < 100) {
+					run++;
+					Logger.info("CLIENT-Run " + run);
+					long startWaitTime = System.nanoTime();
+					while (!stop) {
 						try {
-							sleep(300);
-						} catch (InterruptedException ie) {
-							ie.printStackTrace();
+							client = new Socket(routerAddress,
+									Constants.ROUTER_STREAM_PORT);
+							break;
+						} catch (IOException e) {
+							Logger.info("CLIENT-Router is busy, will retry");
+							try {
+								sleep(300);
+							} catch (InterruptedException ie) {
+								ie.printStackTrace();
+							}
 						}
 					}
-				}
 
-				InputStream clientInput = client.getInputStream();
-				OutputStream clientOutput = client.getOutputStream();
+					long waitTime = System.nanoTime() - startWaitTime;
+					Logger.waitTime((double) waitTime / 1000000000.0);
 
-				ByteBuffer inputBuf = ByteBuffer.allocate(1024);
-				byte[] outputBuf = new byte[1024];
+					InputStream clientInput = client.getInputStream();
+					OutputStream clientOutput = client.getOutputStream();
 
-				outputBuf = Operations.GET_FILE.getBytes();
-				clientOutput.write(outputBuf);
+					ByteBuffer inputBuf = ByteBuffer.allocate(1024);
+					byte[] outputBuf = new byte[1024];
 
-				int readBytes = clientInput.read(inputBuf.array());
-				if (readBytes == -1) {
-					Logger.info("CLIENT-All servers are busy");
-					return;
-				}
+					outputBuf = Operations.GET_FILE.getBytes();
+					clientOutput.write(outputBuf);
 
-				String response = new String(inputBuf.array(), 0, readBytes);
-
-				Logger.debug("CLIENT-Received response: " + response);
-
-				if (response.split(":")[0]
-						.equalsIgnoreCase(Operations.FILE_METADATA)) {
-					String fileName = response.split(":")[1];
-					int fileSize = Integer.parseInt(response.split(":")[2]);
-					Logger.info("CLIENT-Downloading - Name: " + fileName
-							+ " Size: " + fileSize + " bytes");
-
-					String dir = System.getProperty("user.dir");
-					File file = new File(dir + "/downloads/" + fileName);
-					FileOutputStream fileStream = new FileOutputStream(file);
-
-					int bytes, total = 0;
-					inputBuf.clear();
-					while ((bytes = clientInput.read(inputBuf.array())) != -1) {
-						total += bytes;
-						fileStream.write(inputBuf.array(), 0, bytes);
-						fileStream.flush();
+					int readBytes = clientInput.read(inputBuf.array());
+					if (readBytes == -1) {
+						Logger.info("CLIENT-All servers are busy");
+						Logger.fileSize(0);
+						Logger.downloadTime(0);
+						return;
 					}
 
-					Logger.info("CLIENT-Received: " + total + " bytes");
+					String response = new String(inputBuf.array(), 0, readBytes);
 
-					try {
-						fileStream.close();
-					} catch (IOException e) {
+					Logger.debug("CLIENT-Received response: " + response);
 
+					if (response.split(":")[0]
+							.equalsIgnoreCase(Operations.FILE_METADATA)) {
+						String fileName = response.split(":")[1];
+						int fileSize = Integer.parseInt(response.split(":")[2]);
+						Logger.info("CLIENT-Downloading - Name: " + fileName
+								+ " Size: " + fileSize + " bytes");
+
+						String dir = System.getProperty("user.dir");
+						File file = new File(dir + "/downloads/" + fileName);
+						FileOutputStream fileStream = new FileOutputStream(file);
+
+						long startDownloadTime = System.nanoTime();
+						int bytes, total = 0;
+						inputBuf.clear();
+						while ((bytes = clientInput.read(inputBuf.array())) != -1) {
+							total += bytes;
+							fileStream.write(inputBuf.array(), 0, bytes);
+							fileStream.flush();
+						}
+
+						long downloadTime = System.nanoTime()
+								- startDownloadTime;
+						Logger.downloadTime((double) downloadTime / 1000000000.0);
+						Logger.fileSize(fileSize);
+
+						Logger.info("CLIENT-Received: " + total + " bytes");
+
+						try {
+							fileStream.close();
+						} catch (IOException e) {
+
+						}
+
+						clientInput.close();
+						clientOutput.close();
+						client.close();
 					}
-
-					clientInput.close();
-					clientOutput.close();
-					client.close();
 				}
 			} catch (IOException e) {
 				if (client == null || !client.isClosed()) {
