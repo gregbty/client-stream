@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using ClientStream.Constants;
 
 namespace ClientStream.Endpoints
 {
@@ -13,39 +14,49 @@ namespace ClientStream.Endpoints
     {
         private readonly List<IPEndPoint> _routers = new List<IPEndPoint>();
         private readonly List<IPEndPoint> _servers = new List<IPEndPoint>();
-        private readonly Socket _routerDiscoveryServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        private readonly Socket _serverReqestServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        private readonly BackgroundWorker _routerDiscoveryWorker = new BackgroundWorker();
-        private readonly BackgroundWorker _serverRequestWorker = new BackgroundWorker();
+        private readonly Socket _discoveryServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        private readonly Socket _serverRequestServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        private readonly BackgroundWorker _discoveryServerWorker = new BackgroundWorker();
+        private readonly BackgroundWorker _serverRequestServerWorker = new BackgroundWorker();
 
         public Router()
         {
-            _routerDiscoveryWorker.WorkerSupportsCancellation = true;
-            _serverRequestWorker.WorkerSupportsCancellation = true;
+            _discoveryServerWorker.WorkerSupportsCancellation = true;
+            _serverRequestServerWorker.WorkerSupportsCancellation = true;
 
-            _routerDiscoveryServer.ReceiveTimeout = 100;
-            _serverReqestServer.ReceiveTimeout = 100;
+            _discoveryServer.ReceiveTimeout = 100;
+            _serverRequestServer.ReceiveTimeout = 100;
         }
 
-        public bool CheckIfRouterExists(IPEndPoint router)
+        public string GetNextAvailableServer(IPEndPoint client)
+        {
+            var random = new Random();
+            var server = _servers.Where(t => !Equals(t.Address, client.Address)).ElementAt(random.Next(0, _servers.Count - 1));
+            return server.Address.ToString();
+        }
+
+        private bool CheckIfRouterExists(IPEndPoint router)
         {
             return _routers.Any(r => Equals(r.Address, router.Address));
         }
 
-        public bool CheckIfServerExists(IPEndPoint server)
+        private bool CheckIfServerExists(IPEndPoint server)
         {
             return _servers.Any(s => Equals(s.Address, server.Address));
         }
 
-        public void AddRouter(IPEndPoint router)
+        private void AddRouter(IPEndPoint router)
         {
             if (CheckIfRouterExists(router))
                 return;
 
             _routers.Add(router);
+
+            var data = Encoding.ASCII.GetBytes(Commands.AddRouter);
+            _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, router);
         }
 
-        public void AddServer(IPEndPoint server)
+        private void AddServer(IPEndPoint server)
         {
             if (CheckIfServerExists(server))
                 return;
@@ -55,49 +66,91 @@ namespace ClientStream.Endpoints
 
         public override void Start()
         {
-            _routerDiscoveryWorker.DoWork += serverRequestWorker_DoWork;
-            _routerDiscoveryWorker.RunWorkerAsync();
+            _discoveryServerWorker.DoWork += _discoveryServerWorker_DoWork;
+            _discoveryServerWorker.RunWorkerAsync();
 
-            _serverRequestWorker.DoWork += _routerDiscoveryWorker_DoWork;
-            _serverRequestWorker.RunWorkerAsync();
+            _serverRequestServerWorker.DoWork += serverRequestServerWorker_DoWork;
+            _serverRequestServerWorker.RunWorkerAsync();
         }
 
         public override void Stop()
         {
-            _routerDiscoveryWorker.CancelAsync();
-            _routerDiscoveryWorker.DoWork -= _routerDiscoveryWorker_DoWork;
+            _discoveryServerWorker.CancelAsync();
+            _discoveryServerWorker.DoWork -= _discoveryServerWorker_DoWork;
 
-            _serverRequestWorker.CancelAsync();
-            _serverRequestWorker.DoWork -= serverRequestWorker_DoWork;
+            _serverRequestServerWorker.CancelAsync();
+            _serverRequestServerWorker.DoWork -= serverRequestServerWorker_DoWork;
         }
 
-        private void _routerDiscoveryWorker_DoWork(object sender, DoWorkEventArgs e)
+        private void _discoveryServerWorker_DoWork(object sender, DoWorkEventArgs e)
         {
-        }
-
-        private void serverRequestWorker_DoWork(object sender, DoWorkEventArgs e)
-        {
+            var random = new Random();
             var data = new byte[1024];
-            var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.Router);
+            var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.Discovery);
 
-            _serverReqestServer.Bind(localEndpoint);
-            Program.MainForm.WriteOutput("Waiting for client...");
+            _discoveryServer.Bind(localEndpoint);
 
             var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
             var client = (EndPoint) remoteEndpoint;
 
-            while (!_serverRequestWorker.CancellationPending)
+            while (!_discoveryServerWorker.CancellationPending)
             {
                 int received;
 
                 try
                 {
-                    received = _serverReqestServer.ReceiveFrom(data, ref client);
+                    received = _discoveryServer.ReceiveFrom(data, ref client);
+                }
+                catch (Exception)
+                {
+                    int ms = random.Next(10, 150);
+                    Thread.Sleep(ms);
+                    continue;
+                }
+
+                string input = Encoding.ASCII.GetString(data, 0, received);
+
+                switch (input)
+                {
+                    case Commands.AddRouter: 
+                        AddRouter(remoteEndpoint);
+                        break;
+                    case Commands.AddServer:
+                        AddServer(remoteEndpoint);
+                        break;
+                }
+            }
+
+            _discoveryServer.Close();
+            Program.MainForm.WriteOutput("Discovery socket closed", true);
+        }
+
+        private void serverRequestServerWorker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            var random = new Random();
+            var data = new byte[1024];
+            var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.ServerRequest);
+
+            _serverRequestServer.Bind(localEndpoint);
+            Program.MainForm.WriteOutput("Waiting for client...");
+
+            var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
+            var client = (EndPoint) remoteEndpoint;
+
+            while (!_serverRequestServerWorker.CancellationPending)
+            {
+                int received;
+
+                try
+                {
+                    received = _serverRequestServer.ReceiveFrom(data, ref client);
                 }
                 catch (SocketException)
                 {
-                    Thread.Sleep(100);
                     Program.MainForm.WriteOutput("Receive timeout", true);
+
+                    int ms = random.Next(10, 150);
+                    Thread.Sleep(ms);
                     continue;
                 }
 
@@ -106,17 +159,14 @@ namespace ClientStream.Endpoints
 
                 if (!input.Equals(Commands.GetServer)) continue;
 
-                var random = new Random();
-                int index = random.Next(0, 1);
-
-                string output = _servers.ElementAt(index).Address.ToString(); 
+                string output = GetNextAvailableServer(remoteEndpoint); 
                 data = Encoding.ASCII.GetBytes(output);
 
-                _serverReqestServer.SendTo(data, data.Length, SocketFlags.None, client);
+                _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, client);
             }
 
-            _serverReqestServer.Close();
-            Program.MainForm.WriteOutput("Socket closed", true);
+            _serverRequestServer.Close();
+            Program.MainForm.WriteOutput("Server request socket closed", true);
         }
     }
 }
