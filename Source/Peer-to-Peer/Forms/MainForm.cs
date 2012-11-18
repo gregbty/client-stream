@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Windows.Forms;
 using ClientStream.Endpoints;
 
@@ -35,6 +36,12 @@ namespace ClientStream.Forms
 
         private void startBtn_Click(object sender, EventArgs e)
         {
+            if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "output")))
+                Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "output"));
+
+            if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "downloads")))
+                Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "downloads"));
+
             if (startBtn.Text.Equals("Start"))
             {
                 outputTxt.Clear();

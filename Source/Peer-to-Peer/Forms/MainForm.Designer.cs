@@ -34,7 +34,6 @@
             this.startBtn = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.outputTxt = new System.Windows.Forms.RichTextBox();
-            this.panel1 = new System.Windows.Forms.Panel();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.downloadProgressLbl = new System.Windows.Forms.ToolStripStatusLabel();
             this.downloadProgress = new System.Windows.Forms.ToolStripProgressBar();
@@ -52,7 +51,7 @@
             this.groupBox1.Controls.Add(this.startBtn);
             this.groupBox1.Location = new System.Drawing.Point(12, 8);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(428, 99);
+            this.groupBox1.Size = new System.Drawing.Size(413, 99);
             this.groupBox1.TabIndex = 0;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Endpoint Type";
@@ -83,7 +82,7 @@
             // startBtn
             // 
             this.startBtn.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.startBtn.Location = new System.Drawing.Point(330, 70);
+            this.startBtn.Location = new System.Drawing.Point(315, 70);
             this.startBtn.Name = "startBtn";
             this.startBtn.Size = new System.Drawing.Size(92, 23);
             this.startBtn.TabIndex = 0;
@@ -97,9 +96,9 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox2.Controls.Add(this.outputTxt);
-            this.groupBox2.Location = new System.Drawing.Point(12, 187);
+            this.groupBox2.Location = new System.Drawing.Point(12, 113);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(428, 234);
+            this.groupBox2.Size = new System.Drawing.Size(413, 236);
             this.groupBox2.TabIndex = 1;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Output";
@@ -111,27 +110,18 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.outputTxt.Location = new System.Drawing.Point(6, 19);
             this.outputTxt.Name = "outputTxt";
-            this.outputTxt.Size = new System.Drawing.Size(416, 209);
+            this.outputTxt.Size = new System.Drawing.Size(401, 211);
             this.outputTxt.TabIndex = 0;
             this.outputTxt.Text = "";
-            // 
-            // panel1
-            // 
-            this.panel1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.panel1.Location = new System.Drawing.Point(12, 114);
-            this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(428, 68);
-            this.panel1.TabIndex = 2;
             // 
             // statusStrip1
             // 
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.downloadProgressLbl,
             this.downloadProgress});
-            this.statusStrip1.Location = new System.Drawing.Point(0, 435);
+            this.statusStrip1.Location = new System.Drawing.Point(0, 363);
             this.statusStrip1.Name = "statusStrip1";
-            this.statusStrip1.Size = new System.Drawing.Size(452, 22);
+            this.statusStrip1.Size = new System.Drawing.Size(437, 22);
             this.statusStrip1.TabIndex = 3;
             this.statusStrip1.Text = "statusStrip1";
             // 
@@ -150,9 +140,8 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(452, 457);
+            this.ClientSize = new System.Drawing.Size(437, 385);
             this.Controls.Add(this.statusStrip1);
-            this.Controls.Add(this.panel1);
             this.Controls.Add(this.groupBox2);
             this.Controls.Add(this.groupBox1);
             this.Font = new System.Drawing.Font("Tahoma", 8.25F);
@@ -173,7 +162,6 @@
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.RichTextBox outputTxt;
-        private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Button startBtn;
         private System.Windows.Forms.RadioButton clientBox;
         private System.Windows.Forms.RadioButton routerBox;

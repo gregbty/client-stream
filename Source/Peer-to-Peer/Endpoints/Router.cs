@@ -54,7 +54,7 @@ namespace ClientStream.Endpoints
 
             _routers.Add(router);
 
-            var data = Encoding.ASCII.GetBytes(Commands.AddRouter);
+            var data = Encoding.ASCII.GetBytes(Message.AddRouter);
             _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, router);
         }
 
@@ -119,10 +119,10 @@ namespace ClientStream.Endpoints
 
                 switch (input)
                 {
-                    case Commands.AddRouter: 
+                    case Message.AddRouter: 
                         AddRouter(remoteEndpoint);
                         break;
-                    case Commands.AddServer:
+                    case Message.AddServer:
                         AddServer(remoteEndpoint);
                         break;
                 }
@@ -166,10 +166,9 @@ namespace ClientStream.Endpoints
                 string input = Encoding.ASCII.GetString(data, 0, received);
                 Program.MainForm.WriteOutput(String.Format("Request received from: {0}, data: {1}", client, input));
 
-                if (!input.Equals(Commands.GetServer)) continue;
-
-                string output = GetNextAvailableServer(remoteEndpoint); 
-                data = Encoding.ASCII.GetBytes(output);
+                if (!input.Equals(Message.GetServer)) continue;
+ 
+                data = Encoding.ASCII.GetBytes(GetNextAvailableServer(remoteEndpoint));
 
                 _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, client);
             }
