@@ -18,14 +18,16 @@ namespace ClientStream.Endpoints
         private readonly Socket _serverRequestServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         private readonly BackgroundWorker _discoveryServerWorker = new BackgroundWorker();
         private readonly BackgroundWorker _serverRequestServerWorker = new BackgroundWorker();
+        private readonly ManualResetEvent _discoveryServerWorkerReset = new ManualResetEvent(false);
+        private readonly ManualResetEvent _serverRequestServerWorkerReset = new ManualResetEvent(false);
 
         public Router()
         {
             _discoveryServerWorker.WorkerSupportsCancellation = true;
             _serverRequestServerWorker.WorkerSupportsCancellation = true;
 
-            _discoveryServer.ReceiveTimeout = 100;
-            _serverRequestServer.ReceiveTimeout = 100;
+            _discoveryServer.ReceiveTimeout = 1000;
+            _serverRequestServer.ReceiveTimeout = 1000;
         }
 
         public string GetNextAvailableServer(IPEndPoint client)
@@ -66,9 +68,11 @@ namespace ClientStream.Endpoints
 
         public override void Start()
         {
+            _discoveryServerWorkerReset.Reset();
             _discoveryServerWorker.DoWork += _discoveryServerWorker_DoWork;
             _discoveryServerWorker.RunWorkerAsync();
 
+            _serverRequestServerWorkerReset.Reset();
             _serverRequestServerWorker.DoWork += serverRequestServerWorker_DoWork;
             _serverRequestServerWorker.RunWorkerAsync();
         }
@@ -80,6 +84,9 @@ namespace ClientStream.Endpoints
 
             _serverRequestServerWorker.CancelAsync();
             _serverRequestServerWorker.DoWork -= serverRequestServerWorker_DoWork;
+
+            //_discoveryServerWorkerReset.WaitOne();
+            //_serverRequestServerWorkerReset.WaitOne();
         }
 
         private void _discoveryServerWorker_DoWork(object sender, DoWorkEventArgs e)
@@ -123,6 +130,8 @@ namespace ClientStream.Endpoints
 
             _discoveryServer.Close();
             Program.MainForm.WriteOutput("Discovery socket closed", true);
+
+            _discoveryServerWorkerReset.Set();
         }
 
         private void serverRequestServerWorker_DoWork(object sender, DoWorkEventArgs e)
@@ -167,6 +176,8 @@ namespace ClientStream.Endpoints
 
             _serverRequestServer.Close();
             Program.MainForm.WriteOutput("Server request socket closed", true);
+
+            _serverRequestServerWorkerReset.Set();
         }
     }
 }

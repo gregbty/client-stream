@@ -1,4 +1,4 @@
-﻿namespace ClientStream
+﻿namespace ClientStream.Constants
 {
     public static class Commands
     {

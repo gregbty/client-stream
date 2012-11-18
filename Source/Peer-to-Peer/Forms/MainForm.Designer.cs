@@ -1,4 +1,4 @@
-﻿namespace ClientStream
+﻿namespace ClientStream.Forms
 {
     partial class MainForm
     {
@@ -35,8 +35,12 @@
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.outputTxt = new System.Windows.Forms.RichTextBox();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.statusStrip1 = new System.Windows.Forms.StatusStrip();
+            this.downloadProgressLbl = new System.Windows.Forms.ToolStripStatusLabel();
+            this.downloadProgress = new System.Windows.Forms.ToolStripProgressBar();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
+            this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // groupBox1
@@ -95,7 +99,7 @@
             this.groupBox2.Controls.Add(this.outputTxt);
             this.groupBox2.Location = new System.Drawing.Point(12, 187);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(428, 258);
+            this.groupBox2.Size = new System.Drawing.Size(428, 234);
             this.groupBox2.TabIndex = 1;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Output";
@@ -107,7 +111,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.outputTxt.Location = new System.Drawing.Point(6, 19);
             this.outputTxt.Name = "outputTxt";
-            this.outputTxt.Size = new System.Drawing.Size(416, 233);
+            this.outputTxt.Size = new System.Drawing.Size(416, 209);
             this.outputTxt.TabIndex = 0;
             this.outputTxt.Text = "";
             // 
@@ -120,11 +124,34 @@
             this.panel1.Size = new System.Drawing.Size(428, 68);
             this.panel1.TabIndex = 2;
             // 
+            // statusStrip1
+            // 
+            this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.downloadProgressLbl,
+            this.downloadProgress});
+            this.statusStrip1.Location = new System.Drawing.Point(0, 435);
+            this.statusStrip1.Name = "statusStrip1";
+            this.statusStrip1.Size = new System.Drawing.Size(452, 22);
+            this.statusStrip1.TabIndex = 3;
+            this.statusStrip1.Text = "statusStrip1";
+            // 
+            // downloadProgressLbl
+            // 
+            this.downloadProgressLbl.Name = "downloadProgressLbl";
+            this.downloadProgressLbl.Size = new System.Drawing.Size(112, 17);
+            this.downloadProgressLbl.Text = "Download Progress:";
+            // 
+            // downloadProgress
+            // 
+            this.downloadProgress.Name = "downloadProgress";
+            this.downloadProgress.Size = new System.Drawing.Size(100, 16);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(452, 457);
+            this.Controls.Add(this.statusStrip1);
             this.Controls.Add(this.panel1);
             this.Controls.Add(this.groupBox2);
             this.Controls.Add(this.groupBox1);
@@ -134,7 +161,10 @@
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
             this.groupBox2.ResumeLayout(false);
+            this.statusStrip1.ResumeLayout(false);
+            this.statusStrip1.PerformLayout();
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
@@ -147,6 +177,9 @@
         private System.Windows.Forms.Button startBtn;
         private System.Windows.Forms.RadioButton clientBox;
         private System.Windows.Forms.RadioButton routerBox;
+        private System.Windows.Forms.StatusStrip statusStrip1;
+        private System.Windows.Forms.ToolStripStatusLabel downloadProgressLbl;
+        private System.Windows.Forms.ToolStripProgressBar downloadProgress;
     }
 }
 

@@ -2,7 +2,7 @@
 using System.Windows.Forms;
 using ClientStream.Endpoints;
 
-namespace ClientStream
+namespace ClientStream.Forms
 {
     public partial class MainForm : Form
     {
@@ -11,6 +11,8 @@ namespace ClientStream
         public MainForm()
         {
             InitializeComponent();
+
+            downloadProgressLbl.Visible = downloadProgress.Visible = false;
         }
 
         public void WriteOutput(string output, bool debug = false)
@@ -31,22 +33,34 @@ namespace ClientStream
             outputTxt.AppendText(Environment.NewLine);
         }
 
-        private void startBtn_Click(object sender, System.EventArgs e)
+        private void startBtn_Click(object sender, EventArgs e)
         {
             if (startBtn.Text.Equals("Start"))
             {
+                outputTxt.Clear();
                 startBtn.Text = "Stop";
 
                 if (routerBox.Checked)
+                {
+                    downloadProgressLbl.Visible = downloadProgress.Visible = false;
                     _endpoint = new Router();
+                }
                 else if (clientBox.Checked)
+                {
+                    downloadProgressLbl.Visible = downloadProgress.Visible = true;
                     _endpoint = new Client();
+                }
+
+                routerBox.Enabled = clientBox.Enabled = false;
                 _endpoint.Start();
             }
             else
             {
                 startBtn.Text = "Start";
                 _endpoint.Stop();
+
+                downloadProgressLbl.Visible = downloadProgress.Visible = false;
+                routerBox.Enabled = clientBox.Enabled = true;
             }
         }
     }
