@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientStream", "ClientStream.csproj", "{BEE52724-A901-4ED7-A713-734CD9D01105}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientStream", "ClientStream.csproj", "{4E790CEE-98CC-4278-924B-2A11C5ABB824}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -9,10 +9,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{BEE52724-A901-4ED7-A713-734CD9D01105}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BEE52724-A901-4ED7-A713-734CD9D01105}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BEE52724-A901-4ED7-A713-734CD9D01105}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BEE52724-A901-4ED7-A713-734CD9D01105}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E790CEE-98CC-4278-924B-2A11C5ABB824}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E790CEE-98CC-4278-924B-2A11C5ABB824}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E790CEE-98CC-4278-924B-2A11C5ABB824}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E790CEE-98CC-4278-924B-2A11C5ABB824}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
