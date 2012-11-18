@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Windows.Forms;
 using ClientStream.Endpoints;
 
@@ -13,6 +15,7 @@ namespace ClientStream.Forms
         {
             InitializeComponent();
 
+            addressLbl.Text = string.Format("IP Address: {0}", GetIPAddress());
             downloadProgressLbl.Visible = downloadProgress.Visible = false;
         }
 
@@ -24,20 +27,38 @@ namespace ClientStream.Forms
                 return;
             }
 
-#if DEBUG
+#if !DEBUG
+            if (debug) return;
+#endif
+
             if (debug)
             {
                 outputTxt.AppendText("Debug: ");
             }
-#endif
+            
             outputTxt.AppendText(output);
             outputTxt.AppendText(Environment.NewLine);
         }
 
+        private string GetIPAddress()
+        {
+            string localIP = "127.0.0.1";
+            IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (IPAddress ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    localIP = ip.ToString();
+                }
+            }
+
+            return localIP;
+        }
+
         private void startBtn_Click(object sender, EventArgs e)
         {
-            if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "output")))
-                Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "output"));
+            if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "files")))
+                Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "files"));
 
             if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "downloads")))
                 Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "downloads"));
@@ -45,27 +66,39 @@ namespace ClientStream.Forms
             if (startBtn.Text.Equals("Start"))
             {
                 outputTxt.Clear();
-                startBtn.Text = "Stop";
 
                 if (routerBox.Checked)
                 {
-                    downloadProgressLbl.Visible = downloadProgress.Visible = false;
                     _endpoint = new Router();
+
+                    downloadProgressLbl.Visible = downloadProgress.Visible = false;
                 }
                 else if (clientBox.Checked)
                 {
+                    using (var routerSelect = new RouterSelect())
+                    {
+                        routerSelect.ShowDialog(this);
+
+                        if (routerSelect.Router == null)
+                            return;
+
+                        _endpoint = new Client(routerSelect.Router);
+                    }
+
                     downloadProgressLbl.Visible = downloadProgress.Visible = true;
-                    _endpoint = new Client();
                 }
 
                 routerBox.Enabled = clientBox.Enabled = false;
                 _endpoint.Start();
+               
+                startBtn.Text = "Stop";
             }
             else
             {
-                startBtn.Text = "Start";
+                
                 _endpoint.Stop();
 
+                startBtn.Text = "Start";
                 downloadProgressLbl.Visible = downloadProgress.Visible = false;
                 routerBox.Enabled = clientBox.Enabled = true;
             }

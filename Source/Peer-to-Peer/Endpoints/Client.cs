@@ -9,7 +9,7 @@ using ClientStream.Constants;
 
 namespace ClientStream.Endpoints
 {
-    internal class Client : Endpoint
+    public class Client : Endpoint
     {
         private readonly IPEndPoint _router;
         private readonly UdpClient _serverRequestClient = new UdpClient();
@@ -18,8 +18,10 @@ namespace ClientStream.Endpoints
         private readonly BackgroundWorker _streamServerWorker = new BackgroundWorker();
         private readonly BackgroundWorker _streamClientWorker = new BackgroundWorker();
 
-        public Client()
+        public Client(IPEndPoint router)
         {
+            _router = router;
+
             _streamServerWorker.WorkerSupportsCancellation = true;
             _streamClientWorker.WorkerSupportsCancellation = true;
 
@@ -102,14 +104,20 @@ namespace ClientStream.Endpoints
                 var data = Encoding.ASCII.GetBytes(Message.GetServer);
                 _serverRequestClient.Send(data, data.Length);
 
-                var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
-                data = _serverRequestClient.Receive(ref remoteEndpoint);
+                var client = new IPEndPoint(IPAddress.Any, 0);
+                data = _serverRequestClient.Receive(ref client);
 
                 string input = Encoding.ASCII.GetString(data);
                 if (input.Equals(Message.NoServers))
+                {
+                    Program.MainForm.WriteOutput("No servers available");
+                    Thread.Sleep(100);
                     continue;
+                }
 
                 var server = IPAddress.Parse(input);
+                Program.MainForm.WriteOutput(string.Format("Connecting to server@{0} ", server));
+
                 _streamClient.Connect(server, Ports.Streaming);
 
                 data = Encoding.ASCII.GetBytes(Message.GetFile);
@@ -122,7 +130,12 @@ namespace ClientStream.Endpoints
                 while ((received = clientStream.Read(data, 0, data.Length)) != 0)
                 {
                     input = Encoding.ASCII.GetString(data, 0, received);
-                    if (!input.Equals(Message.NoFiles)) break;
+                    if (!input.Equals(Message.NoFiles))
+                    {
+                        Program.MainForm.WriteOutput("No files to download", true);
+                        Thread.Sleep(100);
+                        break;
+                    }
 
                     using (var fileStream = new FileStream(Path.Combine(Directory.GetCurrentDirectory(), "downloads"),
                                                            FileMode.Create))
@@ -133,6 +146,7 @@ namespace ClientStream.Endpoints
                     }
                 }
 
+                _streamClient.Client.Disconnect(true);
                 Thread.Sleep(300);
             }
         }

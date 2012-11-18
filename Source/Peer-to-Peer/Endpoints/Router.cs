@@ -30,10 +30,20 @@ namespace ClientStream.Endpoints
             _serverRequestServer.ReceiveTimeout = 1000;
         }
 
-        public string GetNextAvailableServer(IPEndPoint client)
+        private string GetNextAvailableServer(IPEndPoint client)
         {
             var random = new Random();
-            var server = _servers.Where(t => !Equals(t.Address, client.Address)).ElementAt(random.Next(0, _servers.Count - 1));
+            var servers = _servers.Where(t => !Equals(t.Address, client.Address)).ToList();
+
+            if (servers.Count == 0)
+            {
+                Program.MainForm.WriteOutput("No servers available");
+                return Message.NoServers;
+            }
+
+            var server = servers.ElementAt(random.Next(0, _servers.Count - 1));
+
+            Program.MainForm.WriteOutput(string.Format("Server@{0} chosen", server.Address));
             return server.Address.ToString();
         }
 
@@ -53,6 +63,7 @@ namespace ClientStream.Endpoints
                 return;
 
             _routers.Add(router);
+            Program.MainForm.WriteOutput(string.Format("Router@{0} added", router.Address));
 
             var data = Encoding.ASCII.GetBytes(Message.AddRouter);
             _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, router);
@@ -62,8 +73,9 @@ namespace ClientStream.Endpoints
         {
             if (CheckIfServerExists(server))
                 return;
-
+            
             _servers.Add(server);
+            Program.MainForm.WriteOutput(string.Format("Server@{0} added", server.Address));
         }
 
         public override void Start()
@@ -84,9 +96,6 @@ namespace ClientStream.Endpoints
 
             _serverRequestServerWorker.CancelAsync();
             _serverRequestServerWorker.DoWork -= serverRequestServerWorker_DoWork;
-
-            //_discoveryServerWorkerReset.WaitOne();
-            //_serverRequestServerWorkerReset.WaitOne();
         }
 
         private void _discoveryServerWorker_DoWork(object sender, DoWorkEventArgs e)
@@ -97,8 +106,7 @@ namespace ClientStream.Endpoints
 
             _discoveryServer.Bind(localEndpoint);
 
-            var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
-            var client = (EndPoint) remoteEndpoint;
+            var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
 
             while (!_discoveryServerWorker.CancellationPending)
             {
@@ -120,16 +128,16 @@ namespace ClientStream.Endpoints
                 switch (input)
                 {
                     case Message.AddRouter: 
-                        AddRouter(remoteEndpoint);
+                        AddRouter((IPEndPoint) client);
                         break;
                     case Message.AddServer:
-                        AddServer(remoteEndpoint);
+                        AddServer((IPEndPoint) client);
                         break;
                 }
             }
 
             _discoveryServer.Close();
-            Program.MainForm.WriteOutput("Discovery socket closed", true);
+            Program.MainForm.WriteOutput("Discovery socket closed");
 
             _discoveryServerWorkerReset.Set();
         }
@@ -141,10 +149,9 @@ namespace ClientStream.Endpoints
             var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.ServerRequest);
 
             _serverRequestServer.Bind(localEndpoint);
-            Program.MainForm.WriteOutput("Waiting for client...");
+            Program.MainForm.WriteOutput("Opening server request service...");
 
-            var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
-            var client = (EndPoint) remoteEndpoint;
+            var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
 
             while (!_serverRequestServerWorker.CancellationPending)
             {
@@ -156,8 +163,6 @@ namespace ClientStream.Endpoints
                 }
                 catch (SocketException)
                 {
-                    Program.MainForm.WriteOutput("Receive timeout", true);
-
                     int ms = random.Next(10, 150);
                     Thread.Sleep(ms);
                     continue;
@@ -167,14 +172,14 @@ namespace ClientStream.Endpoints
                 Program.MainForm.WriteOutput(String.Format("Request received from: {0}, data: {1}", client, input));
 
                 if (!input.Equals(Message.GetServer)) continue;
- 
-                data = Encoding.ASCII.GetBytes(GetNextAvailableServer(remoteEndpoint));
+
+                data = Encoding.ASCII.GetBytes(GetNextAvailableServer((IPEndPoint) client));
 
                 _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, client);
             }
 
             _serverRequestServer.Close();
-            Program.MainForm.WriteOutput("Server request socket closed", true);
+            Program.MainForm.WriteOutput("Server request socket closed");
 
             _serverRequestServerWorkerReset.Set();
         }

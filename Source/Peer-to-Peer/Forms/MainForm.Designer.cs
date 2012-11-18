@@ -37,6 +37,7 @@
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.downloadProgressLbl = new System.Windows.Forms.ToolStripStatusLabel();
             this.downloadProgress = new System.Windows.Forms.ToolStripProgressBar();
+            this.addressLbl = new System.Windows.Forms.ToolStripStatusLabel();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.statusStrip1.SuspendLayout();
@@ -117,6 +118,7 @@
             // statusStrip1
             // 
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.addressLbl,
             this.downloadProgressLbl,
             this.downloadProgress});
             this.statusStrip1.Location = new System.Drawing.Point(0, 363);
@@ -135,6 +137,12 @@
             // 
             this.downloadProgress.Name = "downloadProgress";
             this.downloadProgress.Size = new System.Drawing.Size(100, 16);
+            // 
+            // addressLbl
+            // 
+            this.addressLbl.Name = "addressLbl";
+            this.addressLbl.Size = new System.Drawing.Size(113, 17);
+            this.addressLbl.Text = "IP Address: 127.0.0.1";
             // 
             // MainForm
             // 
@@ -168,6 +176,7 @@
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel downloadProgressLbl;
         private System.Windows.Forms.ToolStripProgressBar downloadProgress;
+        private System.Windows.Forms.ToolStripStatusLabel addressLbl;
     }
 }
 
