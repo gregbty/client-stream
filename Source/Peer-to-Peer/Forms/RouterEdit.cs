@@ -14,7 +14,7 @@ namespace ClientStream.Forms
 {
     public partial class RouterEdit : Form
     {
-        public RouterEdit(IEnumerable<IPEndPoint> routers)
+        public RouterEdit(IEnumerable<IPAddress> routers)
         {
             InitializeComponent();
             foreach (var router in routers)
@@ -37,22 +37,24 @@ namespace ClientStream.Forms
                 return;
             }
 
-            bool connected = false;
             var doneEvent = new ManualResetEvent(false);
             var backgroundWorker = new BackgroundWorker();
             backgroundWorker.DoWork += (o, args) =>
                                            {
                                                try
                                                {
-                                                   var client = new UdpClient();
-                                                   client.Connect(address.ToString(), Ports.Discovery);
+                                                   using (var client = new UdpClient())
+                                                   {
+                                                       byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
+                                                       data = Security.EncryptBytes(data);
 
-                                                   byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
-                                                   data = Security.EncryptBytes(data);
-                                                   client.Send(data, data.Length);
-                                                   connected = true;
+                                                       client.Connect(address, Ports.Discovery);
+                                                       client.Send(data, data.Length);
+                                                   }
 
-                                                   bool bound = routersBox.Items.Cast<string>().Any(item => item == address.ToString());
+                                                   bool bound =
+                                                       routersBox.Items.Cast<string>()
+                                                                 .Any(item => item == address.ToString());
 
                                                    if (!bound)
                                                        BeginInvoke(
@@ -77,7 +79,8 @@ namespace ClientStream.Forms
 
         private void routerInput_TextChanged(object sender, EventArgs e)
         {
-            addBtn.Enabled = !string.IsNullOrEmpty(routerTxt.Text);
+            addBtn.Enabled = !string.IsNullOrEmpty(routerTxt.Text) &&
+                             !routerTxt.Text.Equals(Program.MainForm.GetIPAddress());
         }
     }
 }

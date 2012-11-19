@@ -49,7 +49,7 @@ namespace ClientStream.Forms
             outputTxt.AppendText(Environment.NewLine);
         }
 
-        private string GetIPAddress()
+        public string GetIPAddress()
         {
             string localIP = "127.0.0.1";
             IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
