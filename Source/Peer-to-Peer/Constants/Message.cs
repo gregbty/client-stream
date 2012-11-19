@@ -2,6 +2,7 @@
 {
     public static class Message
     {
+        public const string NoRouters = "NOROUTERS";
         public const string AddRouter = "ADDROUTER";
         public const string AddServer = "ADDSERVER";
         public const string GetServer = "GETSERVER";

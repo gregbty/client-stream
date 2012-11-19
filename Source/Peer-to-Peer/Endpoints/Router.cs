@@ -12,9 +12,6 @@ namespace ClientStream.Endpoints
 {
     public class Router : Endpoint
     {
-        private readonly Socket _discoveryServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
-                                                              ProtocolType.Udp);
-
         private readonly BackgroundWorker _discoveryServerWorker = new BackgroundWorker();
         private readonly ManualResetEvent _discoveryServerWorkerReset = new ManualResetEvent(false);
         private readonly List<IPAddress> _routers = new List<IPAddress>();
@@ -32,7 +29,6 @@ namespace ClientStream.Endpoints
             _discoveryServerWorker.WorkerSupportsCancellation = true;
             _serverRequestServerWorker.WorkerSupportsCancellation = true;
 
-            _discoveryServer.ReceiveTimeout = 2000;
             _serverRequestServer.ReceiveTimeout = 3000;
         }
 
@@ -47,20 +43,19 @@ namespace ClientStream.Endpoints
             if (!_routers.Contains(requester))
             {
                 if (_routers.Count == 0)
-                    return Message.NoServers;
+                    return Message.NoRouters;
 
                 try
                 {
                     using (var serverRequestClient = new UdpClient())
                     {
                         IPAddress router = _routers.ElementAt(random.Next(0, _routers.Count - 1));
-                        serverRequestClient.Client.ReceiveTimeout = 1000;
-                        serverRequestClient.Connect(router, Ports.ServerRequest);
+                        serverRequestClient.Client.ReceiveTimeout = 5000;
 
-                        Program.MainForm.WriteOutput(string.Format("Requesting server from router@{0}", router));
                         byte[] data = Encoding.ASCII.GetBytes(Message.GetServer);
                         data = Security.EncryptBytes(data);
-                        serverRequestClient.Send(data, data.Length);
+                        serverRequestClient.Send(data, data.Length, router.ToString(), Ports.ServerRequest);
+                        Program.MainForm.WriteOutput(string.Format("Requesting server from router@{0}", router));
 
                         var client = new IPEndPoint(IPAddress.Any, 0);
                         data = serverRequestClient.Receive(ref client);
@@ -70,7 +65,6 @@ namespace ClientStream.Endpoints
                 }
                 catch
                 {
-                    Program.MainForm.WriteOutput("Error while communicating with remote router");
                     return Message.NoServers;
                 }
             }
@@ -112,13 +106,22 @@ namespace ClientStream.Endpoints
             }
         }
 
-        private void AddServer(IPAddress server)
+        private void AddServer(IPAddress server, int port)
         {
-            if (CheckIfServerExists(server))
-                return;
+            if (!CheckIfServerExists(server))
+            {
+                _servers.Add(server);
+                Program.MainForm.WriteOutput(string.Format("Server@{0} added", server));
+            }
 
-            _servers.Add(server);
-            Program.MainForm.WriteOutput(string.Format("Server@{0} added", server));
+            byte[] data = Encoding.ASCII.GetBytes(Message.AddServer);
+            data = Security.EncryptBytes(data);
+
+            using (var client = new UdpClient())
+            {
+                client.Connect(server, port);
+                client.Send(data, data.Length);
+            }
         }
 
         public override void Start()
@@ -151,20 +154,22 @@ namespace ClientStream.Endpoints
             try
             {
                 var random = new Random();
-                var data = new byte[1024];
-                var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.Discovery);
-
-                _discoveryServer.Bind(localEndpoint);
-
-                var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
+                var discoveryServer = new UdpClient(new IPEndPoint(IPAddress.Any, Ports.Discovery))
+                                          {
+                                              Client =
+                                                  {
+                                                      ReceiveTimeout = 1000
+                                                  }
+                                          };
 
                 while (!_discoveryServerWorker.CancellationPending)
                 {
-                    int received;
+                    var client = new IPEndPoint(IPAddress.Any, 0);
 
+                    byte[] data;
                     try
                     {
-                        received = _discoveryServer.ReceiveFrom(data, ref client);
+                        data = discoveryServer.Receive(ref client);
                     }
                     catch (Exception)
                     {
@@ -173,16 +178,16 @@ namespace ClientStream.Endpoints
                         continue;
                     }
 
-                    data = Security.DecryptBytes(data, received);
+                    data = Security.DecryptBytes(data, data.Length);
                     string input = Encoding.ASCII.GetString(data, 0, data.Length);
 
                     if (input.Equals(Message.AddRouter))
-                        AddRouter(((IPEndPoint) client).Address);
+                        AddRouter(client.Address);
                     else if (input.Equals(Message.AddServer))
-                        AddServer(((IPEndPoint) client).Address);
+                        AddServer(client.Address, client.Port);
                 }
 
-                _discoveryServer.Close();
+                discoveryServer.Close();
             }
             finally
             {
@@ -200,14 +205,14 @@ namespace ClientStream.Endpoints
 
                 _serverRequestServer.Bind(localEndpoint);
 
-                var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
-
                 while (!_serverRequestServerWorker.CancellationPending)
                 {
                     int received;
+                    var client = (EndPoint)new IPEndPoint(IPAddress.Any, 0);
 
                     try
                     {
+                        
                         received = _serverRequestServer.ReceiveFrom(data, ref client);
                     }
                     catch (SocketException)

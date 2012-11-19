@@ -145,11 +145,18 @@ namespace ClientStream.Endpoints
                             data = serverRequestClient.Receive(ref client);
                             data = Security.DecryptBytes(data, data.Length);
 
+                            var random = new Random();
                             string input = Encoding.ASCII.GetString(data);
                             if (input.Equals(Message.NoServers))
                             {
-                                Program.MainForm.WriteOutput("No servers available");
-                                Thread.Sleep(2000);
+                                //Program.MainForm.WriteOutput("No servers available");
+                                Thread.Sleep(random.Next(1000, 3000));
+                                continue;
+                            }
+                            if (input.Equals(Message.NoRouters))
+                            {
+                                //Program.MainForm.WriteOutput("No routers available");
+                                Thread.Sleep(random.Next(1000, 3000));
                                 continue;
                             }
 

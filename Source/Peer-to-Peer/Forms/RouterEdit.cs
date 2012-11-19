@@ -43,14 +43,30 @@ namespace ClientStream.Forms
                                            {
                                                try
                                                {
-                                                   using (var client = new UdpClient())
-                                                   {
-                                                       byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
-                                                       data = Security.EncryptBytes(data);
+                                                   var client = new UdpClient
+                                                                    {
+                                                                        Client =
+                                                                            {
+                                                                                ReceiveTimeout = 1000,
+                                                                                SendTimeout = 1000
+                                                                            }
+                                                                    };
 
-                                                       client.Connect(address, Ports.Discovery);
-                                                       client.Send(data, data.Length);
+                                                   byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
+                                                   data = Security.EncryptBytes(data);
+
+                                                   try
+                                                   {
+                                                       client.Send(data, data.Length,
+                                                                   new IPEndPoint(address, Ports.Discovery));
                                                    }
+                                                   catch (SocketException)
+                                                   {
+                                                       Invoke(new MethodInvoker(() => MessageBox.Show(this, "Failed to connect. Try another IP address")));
+                                                       return;
+                                                   }
+
+                                                   //TODO: Wait for response back
 
                                                    bool bound =
                                                        routersBox.Items.Cast<string>()
@@ -61,10 +77,8 @@ namespace ClientStream.Forms
                                                            new MethodInvoker(
                                                                () => routersBox.Items.Add(address.ToString())));
 
-                                               }
-                                               catch (SocketException)
-                                               {
-                                                   MessageBox.Show(this, "Failed to connect. Try another IP address");
+                                                   client.Close();
+
                                                }
                                                finally
                                                {
