@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.routerBtn = new System.Windows.Forms.Button();
             this.clientBox = new System.Windows.Forms.RadioButton();
             this.routerBox = new System.Windows.Forms.RadioButton();
             this.startBtn = new System.Windows.Forms.Button();
@@ -47,6 +48,7 @@
             // 
             this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBox1.Controls.Add(this.routerBtn);
             this.groupBox1.Controls.Add(this.clientBox);
             this.groupBox1.Controls.Add(this.routerBox);
             this.groupBox1.Controls.Add(this.startBtn);
@@ -56,6 +58,19 @@
             this.groupBox1.TabIndex = 0;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Endpoint Type";
+            // 
+            // routerBtn
+            // 
+            this.routerBtn.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.routerBtn.Enabled = false;
+            this.routerBtn.Location = new System.Drawing.Point(217, 70);
+            this.routerBtn.Name = "routerBtn";
+            this.routerBtn.Size = new System.Drawing.Size(92, 23);
+            this.routerBtn.TabIndex = 3;
+            this.routerBtn.Text = "Routers...";
+            this.routerBtn.UseVisualStyleBackColor = true;
+            this.routerBtn.Visible = false;
+            this.routerBtn.Click += new System.EventHandler(this.routerBtn_Click);
             // 
             // clientBox
             // 
@@ -178,6 +193,7 @@
         private System.Windows.Forms.ToolStripStatusLabel downloadProgressLbl;
         private System.Windows.Forms.ToolStripProgressBar downloadProgress;
         private System.Windows.Forms.ToolStripStatusLabel addressLbl;
+        private System.Windows.Forms.Button routerBtn;
     }
 }
 

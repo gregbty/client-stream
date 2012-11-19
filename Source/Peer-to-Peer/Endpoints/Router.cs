@@ -11,9 +11,9 @@ using ClientStream.Constants;
 
 namespace ClientStream.Endpoints
 {
-    internal class Router : Endpoint
+    public class Router : Endpoint
     {
-        private readonly List<IPEndPoint> _routers = new List<IPEndPoint>();
+        private volatile List<IPEndPoint> _routers = new List<IPEndPoint>();
         private readonly List<IPEndPoint> _servers = new List<IPEndPoint>();
         private readonly Socket _discoveryServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         private readonly Socket _serverRequestServer = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -31,16 +31,51 @@ namespace ClientStream.Endpoints
             _serverRequestServer.ReceiveTimeout = 1000;
         }
 
-        private string GetNextAvailableServer(IPEndPoint client)
+        public List<IPEndPoint> Routers
+        {
+            get { return _routers; }
+        }
+
+        private string GetNextAvailableServer(IPEndPoint requester)
         {
             var random = new Random();
-            var servers = _servers.Where(t => !Equals(t.Address, client.Address)).ToList();
+            if (!_routers.Any(t => Equals(t.Address, requester.Address)))
+            {
+                if (_routers.Count == 0)
+                    return Message.NoServers;
+
+                while (!_serverRequestServerWorker.CancellationPending)
+                {
+                    try
+                    {
+                        using (var serverRequestClient = new UdpClient())
+                        {
+                            var router = _routers.ElementAt(random.Next(0, _routers.Count - 1));
+                            serverRequestClient.Client.ReceiveTimeout = 1000;
+                            serverRequestClient.Connect(router);
+
+                            Program.MainForm.WriteOutput("Requesting server from router@" + router);
+                            var data = Encoding.ASCII.GetBytes(Message.GetServer);
+                            data = Security.EncryptBytes(data);
+                            serverRequestClient.Send(data, data.Length);
+
+                            var client = new IPEndPoint(IPAddress.Any, 0);
+                            data = serverRequestClient.Receive(ref client);
+                            data = Security.DecryptBytes(data, data.Length);
+                            return Encoding.ASCII.GetString(data);
+                        }
+                    }
+                    catch
+                    {
+
+                    }
+                }
+            }
+
+            var servers = _servers.Where(t => !Equals(t.Address, requester.Address)).ToList();
 
             if (servers.Count == 0)
-            {
-                Program.MainForm.WriteOutput("No servers available");
                 return Message.NoServers;
-            }
 
             var server = servers.ElementAt(random.Next(0, _servers.Count - 1));
 
@@ -74,7 +109,7 @@ namespace ClientStream.Endpoints
         {
             if (CheckIfServerExists(server))
                 return;
-            
+
             _servers.Add(server);
             Program.MainForm.WriteOutput(string.Format("Server@{0} added", server.Address));
         }
@@ -186,7 +221,6 @@ namespace ClientStream.Endpoints
 
                     if (!input.Equals(Message.GetServer)) continue;
 
-                    //TODO: Get from other router
                     data = Encoding.ASCII.GetBytes(GetNextAvailableServer((IPEndPoint) client));
                     data = Security.EncryptBytes(data);
 

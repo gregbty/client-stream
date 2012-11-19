@@ -140,8 +140,8 @@ namespace ClientStream.Endpoints
                             data = Security.EncryptBytes(data);
                             serverRequestClient.Send(data, data.Length);
 
+                            Program.MainForm.WriteOutput("Waiting for next available server");
                             var client = new IPEndPoint(IPAddress.Any, 0);
-
                             data = serverRequestClient.Receive(ref client);
                             data = Security.DecryptBytes(data, data.Length);
 
@@ -204,8 +204,15 @@ namespace ClientStream.Endpoints
                                         data = Security.DecryptBytes(data, total);
                                         fileStream.Write(data, 0, data.Length);
                                     }
+                                    using (var videoPlayer = Process.Start(Path.Combine(Directories.Downloads, filename)))
+                                    {
+                                        if (videoPlayer == null) return;
+                                        videoPlayer.WaitForExit();
+                                    }
+
                                     break;
                                 }
+
                                 Thread.Sleep(300);
                             }
                         }

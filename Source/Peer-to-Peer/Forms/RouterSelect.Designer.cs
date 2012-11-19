@@ -68,6 +68,8 @@
             this.Controls.Add(this.label1);
             this.Controls.Add(this.routerTxt);
             this.Font = new System.Drawing.Font("Tahoma", 8.25F);
+            this.MaximumSize = new System.Drawing.Size(254, 139);
+            this.MinimumSize = new System.Drawing.Size(254, 139);
             this.Name = "RouterSelect";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Router Select";

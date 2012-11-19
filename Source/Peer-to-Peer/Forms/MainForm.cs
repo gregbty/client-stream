@@ -81,6 +81,7 @@ namespace ClientStream.Forms
                     _endpoint = new Router();
 
                     downloadProgressLbl.Visible = downloadProgress.Visible = false;
+                    routerBtn.Enabled = routerBtn.Visible = true;
                 }
                 else if (clientBox.Checked)
                 {
@@ -94,6 +95,7 @@ namespace ClientStream.Forms
                         _endpoint = new Client(routerSelect.Router);
                     }
 
+                    routerBtn.Enabled = routerBtn.Visible = false;
                     downloadProgressLbl.Visible = downloadProgress.Visible = true;
                 }
 
@@ -104,6 +106,7 @@ namespace ClientStream.Forms
             }
             else
             {
+                routerBtn.Enabled = routerBtn.Visible = false;
                 startBtn.Enabled = false;
                 _endpoint.Stop();
                 startBtn.Enabled = true;
@@ -111,6 +114,19 @@ namespace ClientStream.Forms
                 startBtn.Text = "Start";
                 downloadProgressLbl.Visible = downloadProgress.Visible = false;
                 routerBox.Enabled = clientBox.Enabled = true;
+            }
+        }
+
+        private void routerBtn_Click(object sender, EventArgs e)
+        {
+            if (!(_endpoint is Router)) return;
+
+            var router = (Router)_endpoint;
+            using (var routerEdit = new RouterEdit(router.Routers))
+            {
+                routerEdit.ShowDialog(this);
+                router.Routers.Clear();
+                router.Routers.AddRange(routerEdit.Routers);
             }
         }
     }

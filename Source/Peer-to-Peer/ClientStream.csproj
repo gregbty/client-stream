@@ -56,6 +56,12 @@
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Constants\Ports.cs" />
+    <Compile Include="Forms\RouterEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\RouterEdit.Designer.cs">
+      <DependentUpon>RouterEdit.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\RouterSelect.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -67,6 +73,9 @@
     <Compile Include="Security.cs" />
     <EmbeddedResource Include="Forms\MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\RouterEdit.resx">
+      <DependentUpon>RouterEdit.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\RouterSelect.resx">
       <DependentUpon>RouterSelect.cs</DependentUpon>
