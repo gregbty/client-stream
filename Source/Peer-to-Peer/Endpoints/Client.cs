@@ -1,26 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
+using System.Media;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using System.Windows.Forms;
 using ClientStream.Constants;
-using Message = ClientStream.Constants.Message;
 
 namespace ClientStream.Endpoints
 {
     public class Client : Endpoint
     {
         private readonly IPEndPoint _router;
-        private readonly TcpListener _streamServer = new TcpListener(IPAddress.Any, Ports.Streaming);
-        private readonly BackgroundWorker _streamServerWorker = new BackgroundWorker();
         private readonly BackgroundWorker _streamClientWorker = new BackgroundWorker();
-        private readonly ManualResetEvent _streamServerWorkerReset = new ManualResetEvent(false);
         private readonly ManualResetEvent _streamClientWorkerReset = new ManualResetEvent(false);
+        private readonly BackgroundWorker _streamServerWorker = new BackgroundWorker();
+        private readonly ManualResetEvent _streamServerWorkerReset = new ManualResetEvent(false);
+        private readonly TcpListener _streamServer = new TcpListener(IPAddress.Any, Ports.Streaming);
 
         public Client(IPEndPoint router)
         {
@@ -28,9 +26,6 @@ namespace ClientStream.Endpoints
 
             _streamServerWorker.WorkerSupportsCancellation = true;
             _streamClientWorker.WorkerSupportsCancellation = true;
-
-            _streamServer.Server.ReceiveTimeout = 1000;
-            _streamServer.Server.SendTimeout = 1000;
         }
 
         public override void Start()
@@ -47,8 +42,15 @@ namespace ClientStream.Endpoints
 
         public override void Stop()
         {
+            try
+            {
+                _streamServer.Stop();
+            }
+            catch
+            {
+            }
+            
             _streamServerWorker.CancelAsync();
-            _streamServer.Stop();
             _streamServerWorker.DoWork -= _streamServerWorker_DoWork;
             _streamServerWorkerReset.WaitOne();
             Program.MainForm.WriteOutput("Streaming service stopped");
@@ -63,11 +65,8 @@ namespace ClientStream.Endpoints
         {
             var fileDir = new DirectoryInfo(Directories.Files);
             FileInfo[] files = fileDir.GetFiles();
-            if (files.Length == 0)
-                return null;
 
-            var random = new Random();
-            return files[random.Next(0, files.Length - 1)];
+            return files.Length == 0 ? null : files[new Random().Next(0, files.Length - 1)];
         }
 
         private byte[] GetFileBytes(FileInfo file)
@@ -79,19 +78,21 @@ namespace ClientStream.Endpoints
         {
             try
             {
+                var random = new Random();
+                _streamServer.Server.ReceiveTimeout = 300;
+                _streamServer.Server.SendTimeout = 300;
                 _streamServer.Start();
 
-                var random = new Random();
                 while (!_streamServerWorker.CancellationPending)
                 {
                     try
                     {
-                        using (TcpClient client = _streamServer.AcceptTcpClient())
+                        using (TcpClient incomingClient = _streamServer.AcceptTcpClient())
                         {
                             var data = new byte[1024];
                             int received;
 
-                            NetworkStream inputStream = client.GetStream();
+                            NetworkStream inputStream = incomingClient.GetStream();
                             while ((received = inputStream.Read(data, 0, data.Length)) != 0)
                             {
                                 data = Security.DecryptBytes(data, received);
@@ -99,7 +100,15 @@ namespace ClientStream.Endpoints
                                 if (!input.Equals(Message.GetFile)) break;
 
                                 FileInfo file = GetFile();
-                                data = Encoding.ASCII.GetBytes(String.Concat(Message.File, string.Format("{0}|{1}", file.Name, file.Length)));
+
+                                IPAddress clientAddress = ((IPEndPoint) incomingClient.Client.RemoteEndPoint).Address;
+                                Program.MainForm.WriteOutput(string.Format("Sending file: {0} to client@{1}", file.Name,
+                                                                           clientAddress));
+
+                                data =
+                                    Encoding.ASCII.GetBytes(String.Concat(Message.File,
+                                                                          string.Format("{0}|{1}", file.Name,
+                                                                                        file.Length)));
                                 data = Security.EncryptBytes(data);
                                 inputStream.Write(data, 0, data.Length);
 
@@ -128,15 +137,17 @@ namespace ClientStream.Endpoints
             {
                 using (var serverRequestClient = new UdpClient())
                 {
-                    serverRequestClient.Client.ReceiveTimeout = 1000;
+                    serverRequestClient.Client.ReceiveTimeout = 200;
+                    serverRequestClient.Client.SendTimeout = 200;
 
                     while (!_streamClientWorker.CancellationPending)
                     {
+                        var random = new Random();
                         try
                         {
                             serverRequestClient.Connect(_router);
 
-                            var data = Encoding.ASCII.GetBytes(Message.GetServer);
+                            byte[] data = Encoding.ASCII.GetBytes(Message.GetServer);
                             data = Security.EncryptBytes(data);
                             serverRequestClient.Send(data, data.Length);
 
@@ -145,32 +156,32 @@ namespace ClientStream.Endpoints
                             data = serverRequestClient.Receive(ref client);
                             data = Security.DecryptBytes(data, data.Length);
 
-                            var random = new Random();
                             string input = Encoding.ASCII.GetString(data);
                             if (input.Equals(Message.NoServers))
                             {
-                                //Program.MainForm.WriteOutput("No servers available");
+                                Program.MainForm.WriteOutput("No servers available", true);
                                 Thread.Sleep(random.Next(1000, 3000));
                                 continue;
                             }
                             if (input.Equals(Message.NoRouters))
                             {
-                                //Program.MainForm.WriteOutput("No routers available");
+                                Program.MainForm.WriteOutput("No routers available", true);
                                 Thread.Sleep(random.Next(1000, 3000));
                                 continue;
                             }
 
-                            var server = IPAddress.Parse(input);
-                            Program.MainForm.WriteOutput(string.Format("Connecting to server@{0} ", server));
-
-                            using (var streamClient = new TcpClient())
+                            using (var remoteClient = new TcpClient())
                             {
-                                streamClient.Connect(server, Ports.Streaming);
+                                remoteClient.Connect(IPAddress.Parse(input), Ports.Streaming);
+
+                                Program.MainForm.WriteOutput(string.Format("Connected to server@{0} ",
+                                           IPAddress.Parse(input)));
 
                                 data = Encoding.ASCII.GetBytes(Message.GetFile);
                                 data = Security.EncryptBytes(data);
 
-                                var clientStream = streamClient.GetStream();
+                                NetworkStream clientStream = remoteClient.GetStream();
+
                                 clientStream.Write(data, 0, data.Length);
 
                                 data = new byte[1024];
@@ -183,27 +194,29 @@ namespace ClientStream.Endpoints
                                     if (input.Equals(Message.NoFiles))
                                     {
                                         Program.MainForm.WriteOutput("No files to download", true);
-                                        Thread.Sleep(100);
+                                        Thread.Sleep(300);
                                         break;
                                     }
                                     if (!input.Contains(Message.File)) break;
 
-                                    var fileinfo = input.Replace(Message.File, String.Empty).Split('|');
+                                    string[] fileinfo = input.Replace(Message.File, String.Empty).Split('|');
                                     string filename = fileinfo[0];
-                                    string filesize = fileinfo[1];
+                                    long filesize = Convert.ToInt64(fileinfo[1]);
 
-                                    Program.MainForm.WriteOutput(string.Format("Incoming file size: {0} bytes", filesize));
-                                    using (
-                                        var fileStream =
-                                            new FileStream(Path.Combine(Directories.Downloads, filename),
-                                                           FileMode.Create))
+                                    IPAddress remoteAddress = ((IPEndPoint) remoteClient.Client.RemoteEndPoint).Address;
+                                    Program.MainForm.WriteOutput(
+                                        string.Format("Incoming file from server@{0} - name: {1}, size: {2} bytes",
+                                                      remoteAddress, filename, filesize));
+
+                                    string downloadedFile = Path.Combine(Directories.Downloads, filename);
+                                    using (var fileStream = new FileStream(downloadedFile, FileMode.Create))
                                     {
-
                                         int total = 0;
                                         var bytes = new List<byte>();
                                         while ((received = clientStream.Read(data, 0, data.Length)) != 0)
                                         {
                                             total += received;
+                                            Program.MainForm.UpdateProgressBar(total, filesize);
                                             bytes.AddRange(data);
                                         }
 
@@ -211,21 +224,19 @@ namespace ClientStream.Endpoints
                                         data = Security.DecryptBytes(data, total);
                                         fileStream.Write(data, 0, data.Length);
                                     }
-                                    using (var videoPlayer = Process.Start(Path.Combine(Directories.Downloads, filename)))
-                                    {
-                                        if (videoPlayer == null) return;
-                                        videoPlayer.WaitForExit();
-                                    }
 
+                                    //(new SoundPlayer(downloadedFile)).PlaySync();
+
+                                    Program.MainForm.ResetProgressBar();
                                     break;
                                 }
-
-                                Thread.Sleep(300);
                             }
                         }
-                        catch
+                        catch (Exception)
                         {
                         }
+
+                        Thread.Sleep(random.Next(1000, 3000));
                     }
                 }
             }

@@ -49,6 +49,30 @@ namespace ClientStream.Forms
             outputTxt.AppendText(Environment.NewLine);
         }
 
+        public void UpdateProgressBar(int current, long overall)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(() => UpdateProgressBar(current, overall)));
+                return;
+            }
+
+            downloadProgressLbl.Visible = downloadProgress.Visible = true;
+            downloadProgress.Value = Convert.ToInt32((current * 100) / overall);
+        }
+
+        public void ResetProgressBar()
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(ResetProgressBar));
+                return;
+            }
+
+            downloadProgressLbl.Visible = downloadProgress.Visible = false;
+            downloadProgress.Value = 0;
+        }
+
         public string GetIPAddress()
         {
             string localIP = "127.0.0.1";
@@ -72,6 +96,7 @@ namespace ClientStream.Forms
             if (!Directory.Exists(Directories.Downloads))
                 Directory.CreateDirectory(Directories.Downloads);
 
+            ResetProgressBar();
             if (startBtn.Text.Equals("Start"))
             {
                 outputTxt.Clear();
@@ -80,7 +105,6 @@ namespace ClientStream.Forms
                 {
                     _endpoint = new Router();
 
-                    downloadProgressLbl.Visible = downloadProgress.Visible = false;
                     routerBtn.Enabled = routerBtn.Visible = true;
                 }
                 else if (clientBox.Checked)
@@ -96,7 +120,6 @@ namespace ClientStream.Forms
                     }
 
                     routerBtn.Enabled = routerBtn.Visible = false;
-                    downloadProgressLbl.Visible = downloadProgress.Visible = true;
                 }
 
                 routerBox.Enabled = clientBox.Enabled = false;

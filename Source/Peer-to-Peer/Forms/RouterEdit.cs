@@ -43,42 +43,50 @@ namespace ClientStream.Forms
                                            {
                                                try
                                                {
-                                                   var client = new UdpClient
-                                                                    {
-                                                                        Client =
-                                                                            {
-                                                                                ReceiveTimeout = 1000,
-                                                                                SendTimeout = 1000
-                                                                            }
-                                                                    };
-
-                                                   byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
-                                                   data = Security.EncryptBytes(data);
-
-                                                   try
+                                                   using (var client = new UdpClient
+                                                                           {
+                                                                               Client =
+                                                                                   {
+                                                                                       ReceiveTimeout = 1000,
+                                                                                       SendTimeout = 1000
+                                                                                   }
+                                                                           })
                                                    {
-                                                       client.Send(data, data.Length,
-                                                                   new IPEndPoint(address, Ports.Discovery));
+                                                       byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
+                                                       data = Security.EncryptBytes(data);
+
+                                                       try
+                                                       {
+                                                           client.Send(data, data.Length,
+                                                                       new IPEndPoint(address, Ports.Discovery));
+
+                                                           var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
+                                                           data = client.Receive(ref remoteEndpoint);
+                                                           data = Security.DecryptBytes(data, data.Length);
+
+                                                           if (
+                                                               Encoding.ASCII.GetString(data, 0, data.Length)
+                                                                       .Equals(Message.AddRouter))
+                                                           {
+                                                               bool bound =
+                                                                   routersBox.Items.Cast<string>()
+                                                                             .Any(item => item == address.ToString());
+
+                                                               if (!bound)
+                                                                   BeginInvoke(
+                                                                       new MethodInvoker(
+                                                                           () =>
+                                                                           routersBox.Items.Add(address.ToString())));
+                                                               return;
+                                                           }
+
+                                                           throw new SocketException();
+                                                       }
+                                                       catch (Exception)
+                                                       {
+                                                           ShowMessage("Failed to connect. Try another IP address");
+                                                       }
                                                    }
-                                                   catch (SocketException)
-                                                   {
-                                                       Invoke(new MethodInvoker(() => MessageBox.Show(this, "Failed to connect. Try another IP address")));
-                                                       return;
-                                                   }
-
-                                                   //TODO: Wait for response back
-
-                                                   bool bound =
-                                                       routersBox.Items.Cast<string>()
-                                                                 .Any(item => item == address.ToString());
-
-                                                   if (!bound)
-                                                       BeginInvoke(
-                                                           new MethodInvoker(
-                                                               () => routersBox.Items.Add(address.ToString())));
-
-                                                   client.Close();
-
                                                }
                                                finally
                                                {
@@ -89,6 +97,17 @@ namespace ClientStream.Forms
             backgroundWorker.RunWorkerAsync();
             Cursor.Current = Cursors.WaitCursor;
             doneEvent.WaitOne();
+        }
+
+        private void ShowMessage(string message)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(() => ShowMessage(message)));
+                return;
+            }
+
+            MessageBox.Show(this, message);
         }
 
         private void routerInput_TextChanged(object sender, EventArgs e)

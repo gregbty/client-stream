@@ -40,41 +40,42 @@ namespace ClientStream.Forms
                                            {
                                                try
                                                {
-                                                   var client = new UdpClient
-                                                                    {
-                                                                        Client =
-                                                                            {
-                                                                                ReceiveTimeout = 1000,
-                                                                                SendTimeout = 1000
-                                                                            }
-                                                                    };
-
-                                                   byte[] data = Encoding.ASCII.GetBytes(Message.AddServer);
-                                                   data = Security.EncryptBytes(data);
-
-                                                   try
+                                                   using (var client = new UdpClient
+                                                                           {
+                                                                               Client =
+                                                                                   {
+                                                                                       ReceiveTimeout = 1000,
+                                                                                       SendTimeout = 1000
+                                                                                   }
+                                                                           })
                                                    {
-                                                       client.Send(data, data.Length,
-                                                                   new IPEndPoint(address, Ports.Discovery));
+                                                       byte[] data = Encoding.ASCII.GetBytes(Message.AddServer);
+                                                       data = Security.EncryptBytes(data);
 
-                                                       var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
-                                                       data = client.Receive(ref remoteEndpoint);
-                                                       data = Security.DecryptBytes(data, data.Length);
-
-                                                       if (
-                                                           Encoding.ASCII.GetString(data, 0, data.Length)
-                                                                   .Equals(Message.AddServer))
+                                                       try
                                                        {
-                                                           Router = new IPEndPoint(address, Ports.ServerRequest);
-                                                           connected = true;
-                                                           return;
-                                                       }
+                                                           client.Send(data, data.Length,
+                                                                       new IPEndPoint(address, Ports.Discovery));
 
-                                                       throw new SocketException();
-                                                   }
-                                                   catch (SocketException)
-                                                   {
-                                                       Invoke(new MethodInvoker(()=>MessageBox.Show(this, "Failed to connect. Try another IP address")));
+                                                           var remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
+                                                           data = client.Receive(ref remoteEndpoint);
+                                                           data = Security.DecryptBytes(data, data.Length);
+
+                                                           if (
+                                                               Encoding.ASCII.GetString(data, 0, data.Length)
+                                                                       .Equals(Message.AddServer))
+                                                           {
+                                                               Router = new IPEndPoint(address, Ports.ServerRequest);
+                                                               connected = true;
+                                                               return;
+                                                           }
+
+                                                           throw new SocketException();
+                                                       }
+                                                       catch (Exception)
+                                                       {
+                                                           ShowMessage("Failed to connect. Try another IP address");
+                                                       }
                                                    }
                                                }
                                                finally
@@ -91,6 +92,17 @@ namespace ClientStream.Forms
                 return;
 
             Close();
+        }
+
+        private void ShowMessage(string message)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(() => ShowMessage(message)));
+                return;
+            }
+
+            MessageBox.Show(this, message);
         }
     }
 }
