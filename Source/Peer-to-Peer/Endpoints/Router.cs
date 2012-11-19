@@ -44,7 +44,7 @@ namespace ClientStream.Endpoints
         private string GetNextAvailableServer(IPAddress requester)
         {
             var random = new Random();
-            if (!_routers.Any(t => Equals(t, requester)))
+            if (!_routers.Contains(requester))
             {
                 if (_routers.Count == 0)
                     return Message.NoServers;
@@ -57,7 +57,7 @@ namespace ClientStream.Endpoints
                         serverRequestClient.Client.ReceiveTimeout = 1000;
                         serverRequestClient.Connect(router, Ports.ServerRequest);
 
-                        Program.MainForm.WriteOutput("Requesting server from router@" + router);
+                        Program.MainForm.WriteOutput(string.Format("Requesting server from router@{0}", router));
                         byte[] data = Encoding.ASCII.GetBytes(Message.GetServer);
                         data = Security.EncryptBytes(data);
                         serverRequestClient.Send(data, data.Length);
@@ -70,16 +70,15 @@ namespace ClientStream.Endpoints
                 }
                 catch
                 {
+                    Program.MainForm.WriteOutput("Error while communicating with remote router");
                     return Message.NoServers;
                 }
             }
 
-            List<IPAddress> servers = _servers.Where(t => Equals(t, requester)).ToList();
-
-            if (servers.Count == 0)
+            if (_servers.Count == 0)
                 return Message.NoServers;
 
-            IPAddress server = servers.ElementAt(random.Next(0, _servers.Count - 1));
+            IPAddress server = _servers.ElementAt(random.Next(0, _servers.Count - 1));
 
             Program.MainForm.WriteOutput(string.Format("Server@{0} chosen", server));
             return server.ToString();
@@ -97,11 +96,11 @@ namespace ClientStream.Endpoints
 
         private void AddRouter(IPAddress router)
         {
-            if (CheckIfRouterExists(router))
-                return;
-
-            _routers.Add(router);
-            Program.MainForm.WriteOutput(string.Format("Router@{0} added", router));
+            if (!CheckIfRouterExists(router))
+            {
+                _routers.Add(router);
+                Program.MainForm.WriteOutput(string.Format("Router@{0} added", router));
+            }
 
             byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
             data = Security.EncryptBytes(data);
