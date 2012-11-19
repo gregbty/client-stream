@@ -8,5 +8,6 @@
         public const string NoServers = "NOSERVERS";
         public const string GetFile = "GETFILE";
         public const string NoFiles = "NOFILES";
+        public const string File = "FILE-";
     }
 }

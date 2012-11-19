@@ -35,9 +35,9 @@
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.outputTxt = new System.Windows.Forms.RichTextBox();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
+            this.addressLbl = new System.Windows.Forms.ToolStripStatusLabel();
             this.downloadProgressLbl = new System.Windows.Forms.ToolStripStatusLabel();
             this.downloadProgress = new System.Windows.Forms.ToolStripProgressBar();
-            this.addressLbl = new System.Windows.Forms.ToolStripStatusLabel();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.statusStrip1.SuspendLayout();
@@ -127,6 +127,12 @@
             this.statusStrip1.TabIndex = 3;
             this.statusStrip1.Text = "statusStrip1";
             // 
+            // addressLbl
+            // 
+            this.addressLbl.Name = "addressLbl";
+            this.addressLbl.Size = new System.Drawing.Size(113, 17);
+            this.addressLbl.Text = "IP Address: 127.0.0.1";
+            // 
             // downloadProgressLbl
             // 
             this.downloadProgressLbl.Name = "downloadProgressLbl";
@@ -138,12 +144,6 @@
             this.downloadProgress.Name = "downloadProgress";
             this.downloadProgress.Size = new System.Drawing.Size(100, 16);
             // 
-            // addressLbl
-            // 
-            this.addressLbl.Name = "addressLbl";
-            this.addressLbl.Size = new System.Drawing.Size(113, 17);
-            this.addressLbl.Text = "IP Address: 127.0.0.1";
-            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -154,6 +154,7 @@
             this.Controls.Add(this.groupBox1);
             this.Font = new System.Drawing.Font("Tahoma", 8.25F);
             this.Name = "MainForm";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "ClientStream";
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();

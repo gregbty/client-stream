@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
+using ClientStream.Constants;
 using ClientStream.Endpoints;
 
 namespace ClientStream.Forms
@@ -19,11 +20,19 @@ namespace ClientStream.Forms
             downloadProgressLbl.Visible = downloadProgress.Visible = false;
         }
 
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            if (_endpoint == null)
+                return;
+
+            _endpoint.Stop();
+        }
+
         public void WriteOutput(string output, bool debug = false)
         {
             if (InvokeRequired)
             {
-                Invoke(new MethodInvoker(() => WriteOutput(output, debug)));
+                BeginInvoke(new MethodInvoker(() => WriteOutput(output, debug)));
                 return;
             }
 
@@ -57,11 +66,11 @@ namespace ClientStream.Forms
 
         private void startBtn_Click(object sender, EventArgs e)
         {
-            if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "files")))
-                Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "files"));
+            if (!Directory.Exists(Directories.Files))
+                Directory.CreateDirectory(Directories.Files);
 
-            if (!Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "downloads")))
-                Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "downloads"));
+            if (!Directory.Exists(Directories.Downloads))
+                Directory.CreateDirectory(Directories.Downloads);
 
             if (startBtn.Text.Equals("Start"))
             {
@@ -95,8 +104,9 @@ namespace ClientStream.Forms
             }
             else
             {
-                
+                startBtn.Enabled = false;
                 _endpoint.Stop();
+                startBtn.Enabled = true;
 
                 startBtn.Text = "Start";
                 downloadProgressLbl.Visible = downloadProgress.Visible = false;

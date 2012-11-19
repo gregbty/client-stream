@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -87,101 +88,117 @@ namespace ClientStream.Endpoints
             _serverRequestServerWorkerReset.Reset();
             _serverRequestServerWorker.DoWork += serverRequestServerWorker_DoWork;
             _serverRequestServerWorker.RunWorkerAsync();
+            Program.MainForm.WriteOutput("Router started");
         }
 
         public override void Stop()
         {
             _discoveryServerWorker.CancelAsync();
             _discoveryServerWorker.DoWork -= _discoveryServerWorker_DoWork;
+            _discoveryServerWorkerReset.WaitOne();
+            Program.MainForm.WriteOutput("Discovery service stopped");
 
             _serverRequestServerWorker.CancelAsync();
             _serverRequestServerWorker.DoWork -= serverRequestServerWorker_DoWork;
+            _serverRequestServerWorkerReset.WaitOne();
+            Program.MainForm.WriteOutput("Server request service stopped");
         }
 
         private void _discoveryServerWorker_DoWork(object sender, DoWorkEventArgs e)
         {
-            var random = new Random();
-            var data = new byte[1024];
-            var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.Discovery);
-
-            _discoveryServer.Bind(localEndpoint);
-
-            var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
-
-            while (!_discoveryServerWorker.CancellationPending)
+            try
             {
-                int received;
+                var random = new Random();
+                var data = new byte[1024];
+                var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.Discovery);
 
-                try
+                _discoveryServer.Bind(localEndpoint);
+
+                var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
+
+                while (!_discoveryServerWorker.CancellationPending)
                 {
-                    received = _discoveryServer.ReceiveFrom(data, ref client);
-                }
-                catch (Exception)
-                {
-                    int ms = random.Next(10, 150);
-                    Thread.Sleep(ms);
-                    continue;
+                    int received;
+
+                    try
+                    {
+                        received = _discoveryServer.ReceiveFrom(data, ref client);
+                    }
+                    catch (Exception)
+                    {
+                        int ms = random.Next(10, 150);
+                        Thread.Sleep(ms);
+                        continue;
+                    }
+
+                    data = Security.DecryptBytes(data, received);
+                    string input = Encoding.ASCII.GetString(data, 0, data.Length);
+
+                    switch (input)
+                    {
+                        case Message.AddRouter:
+                            AddRouter((IPEndPoint) client);
+                            break;
+                        case Message.AddServer:
+                            AddServer((IPEndPoint) client);
+                            break;
+                    }
                 }
 
-                string input = Encoding.ASCII.GetString(data, 0, received);
-
-                switch (input)
-                {
-                    case Message.AddRouter: 
-                        AddRouter((IPEndPoint) client);
-                        break;
-                    case Message.AddServer:
-                        AddServer((IPEndPoint) client);
-                        break;
-                }
+                _discoveryServer.Close();
             }
-
-            _discoveryServer.Close();
-            Program.MainForm.WriteOutput("Discovery socket closed");
-
-            _discoveryServerWorkerReset.Set();
+            finally
+            {
+                _discoveryServerWorkerReset.Set();
+            }
         }
 
         private void serverRequestServerWorker_DoWork(object sender, DoWorkEventArgs e)
         {
-            var random = new Random();
-            var data = new byte[1024];
-            var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.ServerRequest);
-
-            _serverRequestServer.Bind(localEndpoint);
-            Program.MainForm.WriteOutput("Opening server request service...");
-
-            var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
-
-            while (!_serverRequestServerWorker.CancellationPending)
+            try
             {
-                int received;
+                var random = new Random();
+                var data = new byte[1024];
+                var localEndpoint = new IPEndPoint(IPAddress.Any, Ports.ServerRequest);
 
-                try
+                _serverRequestServer.Bind(localEndpoint);
+
+                var client = (EndPoint) new IPEndPoint(IPAddress.Any, 0);
+
+                while (!_serverRequestServerWorker.CancellationPending)
                 {
-                    received = _serverRequestServer.ReceiveFrom(data, ref client);
+                    int received;
+
+                    try
+                    {
+                        received = _serverRequestServer.ReceiveFrom(data, ref client);
+                    }
+                    catch (SocketException)
+                    {
+                        int ms = random.Next(10, 150);
+                        Thread.Sleep(ms);
+                        continue;
+                    }
+
+                    data = Security.DecryptBytes(data, received);
+                    string input = Encoding.ASCII.GetString(data, 0, data.Length);
+                    Program.MainForm.WriteOutput(String.Format("Request received from: {0}, data: {1}", client, input));
+
+                    if (!input.Equals(Message.GetServer)) continue;
+
+                    //TODO: Get from other router
+                    data = Encoding.ASCII.GetBytes(GetNextAvailableServer((IPEndPoint) client));
+                    data = Security.EncryptBytes(data);
+
+                    _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, client);
                 }
-                catch (SocketException)
-                {
-                    int ms = random.Next(10, 150);
-                    Thread.Sleep(ms);
-                    continue;
-                }
 
-                string input = Encoding.ASCII.GetString(data, 0, received);
-                Program.MainForm.WriteOutput(String.Format("Request received from: {0}, data: {1}", client, input));
-
-                if (!input.Equals(Message.GetServer)) continue;
-
-                data = Encoding.ASCII.GetBytes(GetNextAvailableServer((IPEndPoint) client));
-
-                _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, client);
+                _serverRequestServer.Close();
             }
-
-            _serverRequestServer.Close();
-            Program.MainForm.WriteOutput("Server request socket closed");
-
-            _serverRequestServerWorkerReset.Set();
+            finally
+            {
+                _serverRequestServerWorkerReset.Set();
+            }
         }
     }
 }

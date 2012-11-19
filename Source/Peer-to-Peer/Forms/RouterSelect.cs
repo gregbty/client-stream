@@ -43,6 +43,7 @@ namespace ClientStream.Forms
                         client.Connect(address.ToString(), Ports.Discovery);
 
                         var data = Encoding.ASCII.GetBytes(Constants.Message.AddServer);
+                        data = Security.EncryptBytes(data);
                         client.Send(data, data.Length);
 
                         Router = new IPEndPoint(address, Ports.ServerRequest);
