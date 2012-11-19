@@ -125,8 +125,6 @@ namespace ClientStream.Forms
             using (var routerEdit = new RouterEdit(router.Routers))
             {
                 routerEdit.ShowDialog(this);
-                router.Routers.Clear();
-                router.Routers.AddRange(routerEdit.Routers);
             }
         }
     }

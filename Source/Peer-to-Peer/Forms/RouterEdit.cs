@@ -14,18 +14,14 @@ namespace ClientStream.Forms
 {
     public partial class RouterEdit : Form
     {
-        public RouterEdit(List<IPEndPoint> routers)
+        public RouterEdit(IEnumerable<IPEndPoint> routers)
         {
             InitializeComponent();
-            Routers = routers;
-
-            foreach (var router in Routers)
+            foreach (var router in routers)
             {
                 routersBox.Items.Add(router);
             }
         }
-
-        public List<IPEndPoint> Routers { get; private set; }
 
         private void addBtn_Click(object sender, EventArgs e)
         {
@@ -54,15 +50,15 @@ namespace ClientStream.Forms
                                                    byte[] data = Encoding.ASCII.GetBytes(Message.AddRouter);
                                                    data = Security.EncryptBytes(data);
                                                    client.Send(data, data.Length);
-
-                                                   var router = new IPEndPoint(address, Ports.ServerRequest);
-                                                   if (!Routers.Any(t => Equals(t.Address, router.Address)))
-                                                   {
-                                                       routersBox.Items.Add(router.Address);
-                                                       Routers.Add(router);
-                                                   }
-
                                                    connected = true;
+
+                                                   bool bound = routersBox.Items.Cast<string>().Any(item => item == address.ToString());
+
+                                                   if (!bound)
+                                                       BeginInvoke(
+                                                           new MethodInvoker(
+                                                               () => routersBox.Items.Add(address.ToString())));
+
                                                }
                                                catch (SocketException)
                                                {

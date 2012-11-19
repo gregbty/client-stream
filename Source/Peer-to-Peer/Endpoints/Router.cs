@@ -31,7 +31,7 @@ namespace ClientStream.Endpoints
             _serverRequestServer.ReceiveTimeout = 1000;
         }
 
-        public List<IPEndPoint> Routers
+        public IEnumerable<IPEndPoint> Routers
         {
             get { return _routers; }
         }
@@ -102,7 +102,10 @@ namespace ClientStream.Endpoints
             Program.MainForm.WriteOutput(string.Format("Router@{0} added", router.Address));
 
             var data = Encoding.ASCII.GetBytes(Message.AddRouter);
-            _serverRequestServer.SendTo(data, data.Length, SocketFlags.None, router);
+            data = Security.EncryptBytes(data);
+
+            router.Port = Ports.Discovery;
+            _discoveryServer.SendTo(data, data.Length, SocketFlags.None, router);
         }
 
         private void AddServer(IPEndPoint server)
@@ -117,7 +120,7 @@ namespace ClientStream.Endpoints
         public override void Start()
         {
             _discoveryServerWorkerReset.Reset();
-            _discoveryServerWorker.DoWork += _discoveryServerWorker_DoWork;
+            _discoveryServerWorker.DoWork += discoveryServerWorker_DoWork;
             _discoveryServerWorker.RunWorkerAsync();
 
             _serverRequestServerWorkerReset.Reset();
@@ -129,7 +132,7 @@ namespace ClientStream.Endpoints
         public override void Stop()
         {
             _discoveryServerWorker.CancelAsync();
-            _discoveryServerWorker.DoWork -= _discoveryServerWorker_DoWork;
+            _discoveryServerWorker.DoWork -= discoveryServerWorker_DoWork;
             _discoveryServerWorkerReset.WaitOne();
             Program.MainForm.WriteOutput("Discovery service stopped");
 
@@ -139,7 +142,7 @@ namespace ClientStream.Endpoints
             Program.MainForm.WriteOutput("Server request service stopped");
         }
 
-        private void _discoveryServerWorker_DoWork(object sender, DoWorkEventArgs e)
+        private void discoveryServerWorker_DoWork(object sender, DoWorkEventArgs e)
         {
             try
             {
